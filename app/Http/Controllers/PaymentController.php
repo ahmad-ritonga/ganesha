@@ -1,0 +1,211 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Book;
+use App\Models\Chapter;
+use App\Models\Transaction;
+use App\Services\MidtransService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Inertia\Inertia;
+
+class PaymentController extends Controller
+{
+    protected $midtransService;
+
+    public function __construct(MidtransService $midtransService)
+    {
+        $this->midtransService = $midtransService;
+    }
+
+    public function purchaseBook(Request $request, $bookId)
+    {
+        try {
+            $book = Book::findOrFail($bookId);
+            $user = Auth::user();
+
+            // Check if already purchased
+            if ($user->hasPurchasedBook($book->id)) {
+                return back()->with('error', 'Anda sudah memiliki buku ini.');
+            }
+
+            // Create transaction
+            $transaction = $user->purchaseBook($book);
+
+            // Create Snap token
+            $snapToken = $this->midtransService->createSnapToken($transaction);
+
+            return Inertia::render('payment/checkout', [
+                'transaction' => $transaction->load('items'),
+                'book' => $book,
+                'snapToken' => $snapToken,
+                'clientKey' => config('services.midtrans.client_key'),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Book purchase failed', [
+                'book_id' => $bookId,
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function purchaseChapter(Request $request, $chapterId)
+    {
+        try {
+            $chapter = Chapter::with(['book.author'])->findOrFail($chapterId);
+            $user = Auth::user();
+
+            // Check if chapter is free
+            if ($chapter->is_free) {
+                return back()->with('error', 'Chapter ini gratis, tidak perlu dibeli.');
+            }
+
+            // Check if already purchased
+            if ($user->hasPurchasedChapter($chapter->id)) {
+                return back()->with('error', 'Anda sudah memiliki chapter ini.');
+            }
+
+            // Check if already has book access
+            if ($user->hasPurchasedBook($chapter->book_id)) {
+                return back()->with('error', 'Anda sudah memiliki akses melalui pembelian buku.');
+            }
+
+            // Create transaction
+            $transaction = $user->purchaseChapter($chapter);
+
+            // Create Snap token
+            $snapToken = $this->midtransService->createSnapToken($transaction);
+
+            return Inertia::render('payment/checkout', [
+                'transaction' => $transaction->load('items'),
+                'chapter' => $chapter,
+                'book' => $chapter->book,
+                'snapToken' => $snapToken,
+                'clientKey' => config('services.midtrans.client_key'),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Chapter purchase failed', [
+                'chapter_id' => $chapterId,
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function success(Request $request, $transactionId)
+    {
+        $transaction = Transaction::with(['items', 'user'])
+            ->where('id', $transactionId)
+            ->where('user_id', Auth::id())
+            ->firstOrFail();
+
+        return Inertia::render('payment/success', [
+            'transaction' => $transaction,
+        ]);
+    }
+
+    public function failed(Request $request, $transactionId)
+    {
+        $transaction = Transaction::with(['items', 'user'])
+            ->where('id', $transactionId)
+            ->where('user_id', Auth::id())
+            ->firstOrFail();
+
+        return Inertia::render('payment/failed', [
+            'transaction' => $transaction,
+        ]);
+    }
+
+    public function pending(Request $request, $transactionId)
+    {
+        $transaction = Transaction::with(['items', 'user'])
+            ->where('id', $transactionId)
+            ->where('user_id', Auth::id())
+            ->firstOrFail();
+
+        return Inertia::render('payment/pending', [
+            'transaction' => $transaction,
+        ]);
+    }
+
+    public function checkStatus(Request $request, $transactionId)
+    {
+        try {
+            $transaction = Transaction::where('id', $transactionId)
+                ->where('user_id', Auth::id())
+                ->firstOrFail();
+
+            // Get status from Midtrans
+            $status = $this->midtransService->getTransactionStatus($transaction->midtrans_order_id);
+
+            // Update transaction based on Midtrans status
+            switch ($status->transaction_status) {
+                case 'settlement':
+                case 'capture':
+                    if ($transaction->isPending()) {
+                        $transaction->markAsPaid($status->transaction_id);
+                    }
+                    break;
+                case 'expire':
+                    if ($transaction->isPending()) {
+                        $transaction->markAsExpired();
+                    }
+                    break;
+                case 'cancel':
+                case 'deny':
+                case 'failure':
+                    if ($transaction->isPending()) {
+                        $transaction->markAsFailed('Payment failed');
+                    }
+                    break;
+            }
+
+            return response()->json([
+                'status' => $transaction->fresh()->payment_status,
+                'transaction' => $transaction->fresh(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Check payment status failed', [
+                'transaction_id' => $transactionId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json(['error' => 'Failed to check status'], 500);
+        }
+    }
+
+    public function cancel(Request $request, $transactionId)
+    {
+        try {
+            $transaction = Transaction::where('id', $transactionId)
+                ->where('user_id', Auth::id())
+                ->where('payment_status', 'pending')
+                ->firstOrFail();
+
+            // Cancel transaction in Midtrans
+            if ($transaction->midtrans_order_id) {
+                $this->midtransService->cancelTransaction($transaction->midtrans_order_id);
+            }
+
+            // Mark as failed
+            $transaction->markAsFailed('Cancelled by user');
+
+            return redirect()->route('payment.failed', $transaction->id)
+                ->with('message', 'Pembayaran dibatalkan.');
+        } catch (\Exception $e) {
+            Log::error('Cancel payment failed', [
+                'transaction_id' => $transactionId,
+                'error' => $e->getMessage()
+            ]);
+
+            return back()->with('error', 'Gagal membatalkan pembayaran.');
+        }
+    }
+}

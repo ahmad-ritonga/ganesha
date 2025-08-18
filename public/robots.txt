@@ -1,0 +1,20 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: http://ganesha.test/sitemap.xml
+
+# Disallow admin areas
+Disallow: /admin/
+Disallow: /api/
+Disallow: /login
+Disallow: /register
+Disallow: /password/
+
+# Allow public book pages and categories
+Allow: /books/
+Allow: /categories/
+Allow: /authors/
+
+# Crawl delay
+Crawl-delay: 1
