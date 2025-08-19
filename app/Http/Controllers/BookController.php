@@ -32,8 +32,16 @@ class BookController extends Controller
 
         // Filter by category
         if ($request->filled('category')) {
-            $query->whereHas('category', function ($categoryQuery) use ($request) {
-                $categoryQuery->where('slug', $request->input('category'));
+            $categoryParam = $request->input('category');
+            $query->whereHas('category', function ($categoryQuery) use ($categoryParam) {
+                // Check if the parameter is an ID (ULID format) or slug
+                if (strlen($categoryParam) === 26 && ctype_alnum($categoryParam)) {
+                    // Assume it's a ULID (26 characters alphanumeric)
+                    $categoryQuery->where('id', $categoryParam);
+                } else {
+                    // Assume it's a slug
+                    $categoryQuery->where('slug', $categoryParam);
+                }
             });
         }
 
@@ -107,11 +115,11 @@ class BookController extends Controller
 
         // Check if user has purchased this book
         $userHasPurchased = false;
+        $userPurchasedChapters = [];
         if (Auth::check()) {
             $userHasPurchased = Auth::user()->hasPurchasedBook($book->id);
-        }
-
-        // Get related books from same category and author
+            $userPurchasedChapters = Auth::user()->getPurchasedChapterIds($book->id);
+        }        // Get related books from same category and author
         $relatedBooks = Book::with(['author', 'category'])
             ->where('is_published', true)
             ->where('id', '!=', $book->id)
@@ -130,6 +138,7 @@ class BookController extends Controller
             'book' => $book,
             'relatedBooks' => $relatedBooks,
             'userHasPurchased' => $userHasPurchased,
+            'userPurchasedChapters' => $userPurchasedChapters,
         ]);
     }
 

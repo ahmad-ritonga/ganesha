@@ -72,6 +72,54 @@ class DashboardController extends Controller
         $totalReadingProgress = ReadingProgress::count();
         $completedChapters = ReadingProgress::where('progress_percentage', 100)->count();
 
+        // Chart data - Last 7 days
+        $chartData = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $date = $now->copy()->subDays($i);
+            $dateString = $date->format('Y-m-d');
+
+            $dailyUsers = User::whereDate('created_at', $dateString)->count();
+            $dailyBooks = Book::whereDate('created_at', $dateString)->count();
+            $dailyRevenue = Transaction::where('payment_status', 'paid')
+                ->whereDate('created_at', $dateString)
+                ->sum('total_amount');
+            $dailyTransactions = Transaction::whereDate('created_at', $dateString)->count();
+
+            $chartData[] = [
+                'date' => $date->format('M d'),
+                'users' => $dailyUsers,
+                'books' => $dailyBooks,
+                'revenue' => (int) $dailyRevenue,
+                'transactions' => $dailyTransactions,
+            ];
+        }
+
+        // Monthly revenue chart data - Last 6 months
+        $monthlyRevenueData = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $month = $now->copy()->subMonths($i);
+            $monthString = $month->format('Y-m');
+
+            $monthlyRevenue = Transaction::where('payment_status', 'paid')
+                ->whereYear('created_at', $month->year)
+                ->whereMonth('created_at', $month->month)
+                ->sum('total_amount');
+
+            $monthlyRevenueData[] = [
+                'month' => $month->format('M Y'),
+                'revenue' => (int) $monthlyRevenue,
+            ];
+        }
+
+        // Category distribution data
+        $categoryData = Category::withCount('books')->get()->map(function ($category) {
+            return [
+                'name' => $category->name,
+                'value' => $category->books_count,
+                'color' => $this->getRandomColor(),
+            ];
+        })->toArray();
+
         // Recent activities
         $recentUsers = User::latest()->limit(5)->get();
         $recentBooks = Book::with('author')->latest()->limit(5)->get();
@@ -122,6 +170,26 @@ class DashboardController extends Controller
             'recentUsers' => $recentUsers,
             'recentBooks' => $recentBooks,
             'recentTransactions' => $recentTransactions,
+            'chartData' => $chartData,
+            'monthlyRevenueData' => $monthlyRevenueData,
+            'categoryData' => $categoryData,
         ]);
+    }
+
+    private function getRandomColor()
+    {
+        $colors = [
+            '#8884d8',
+            '#82ca9d',
+            '#ffc658',
+            '#ff7300',
+            '#00ff00',
+            '#ff0000',
+            '#00ffff',
+            '#ff00ff',
+            '#ffff00',
+            '#0000ff'
+        ];
+        return $colors[array_rand($colors)];
     }
 }

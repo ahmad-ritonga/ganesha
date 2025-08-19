@@ -213,13 +213,13 @@ export default function Welcome() {
                                 className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-center lg:justify-start mb-8 sm:mb-12"
                                 variants={fadeInUp}
                             >
-                                <Link href="/register" className="w-full sm:w-auto">
+                                <Link href="/author/pricing" className="w-full sm:w-auto">
                                     <motion.button 
                                         className="group w-full sm:w-auto px-6 sm:px-8 lg:px-10 py-3 sm:py-4 lg:py-5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold text-base sm:text-lg rounded-xl shadow-lg flex items-center justify-center gap-3"
                                         whileHover={{ y: -2, scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}
                                     >
-                                        Mulai Sekarang
+                                        Jadi Author
                                         <IconArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                     </motion.button>
                                 </Link>
@@ -355,10 +355,12 @@ export default function Welcome() {
                                     )}
 
                                     {/* CTA Button */}
-                                    <button className={`w-full py-3 ${plan.color} text-white font-semibold rounded-xl hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2 mt-auto`}>
-                                        Pilih {plan.name}
-                                        <IconArrowRight className="w-4 h-4" />
-                                    </button>
+                                    <Link href="/author/pricing" className="w-full">
+                                        <button className={`w-full py-3 ${plan.color} text-white font-semibold rounded-xl hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2 mt-auto`}>
+                                            Pilih {plan.name}
+                                            <IconArrowRight className="w-4 h-4" />
+                                        </button>
+                                    </Link>
                                 </div>
                             </div>
                         ))}
@@ -427,9 +429,11 @@ export default function Welcome() {
                                     ))}
                                 </div>
 
-                                <button className={`w-full py-3 bg-gradient-to-r ${service.color} text-white font-semibold rounded-xl hover:shadow-lg transition-all duration-300`}>
-                                    Pelajari Lebih Lanjut
-                                </button>
+                                <Link href="/author/pricing" className="w-full">
+                                    <button className={`w-full py-3 bg-gradient-to-r ${service.color} text-white font-semibold rounded-xl hover:shadow-lg transition-all duration-300`}>
+                                        Pelajari Lebih Lanjut
+                                    </button>
+                                </Link>
                             </div>
                         ))}
                     </div>

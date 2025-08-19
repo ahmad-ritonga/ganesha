@@ -219,7 +219,10 @@ class CategorySeeder extends Seeder
         ];
 
         foreach ($categories as $categoryData) {
-            Category::create($categoryData);
+            Category::updateOrCreate(
+                ['name' => $categoryData['name']], // Cek berdasarkan nama
+                $categoryData // Data yang akan di-update/create
+            );
         }
     }
 }

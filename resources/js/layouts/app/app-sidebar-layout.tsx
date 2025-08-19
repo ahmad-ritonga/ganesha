@@ -106,6 +106,11 @@ export default function AppSidebarLayout({ children, breadcrumbs }: AppSidebarLa
           icon: <IconStar className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />,
         },
         {
+          label: "Author Submissions",
+          href: route('admin.author-submissions.index'),
+          icon: <IconFileText className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />,
+        },
+        {
           label: "Transaksi",
           icon: <IconCreditCard className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />,
           subItems: [
@@ -205,6 +210,22 @@ export default function AppSidebarLayout({ children, breadcrumbs }: AppSidebarLa
           label: "Reading History",
           href: route('reading-history'),
           icon: <IconHistory className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />,
+        },
+        {
+          label: "Author Center",
+          icon: <IconFileText className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />,
+          subItems: [
+            {
+              label: "Pricing Plans",
+              href: route('author.pricing'),
+              icon: <IconCreditCard className="h-4 w-4 shrink-0 text-neutral-600 dark:text-neutral-300" />,
+            },
+            {
+              label: "Dashboard",
+              href: route('author.dashboard'),
+              icon: <IconDashboard className="h-4 w-4 shrink-0 text-neutral-600 dark:text-neutral-300" />,
+            },
+          ]
         },
         {
           label: "Profile",

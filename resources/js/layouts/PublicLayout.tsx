@@ -12,7 +12,6 @@ interface PublicLayoutProps {
 
 export default function PublicLayout({ children, title = 'Ganesha Science Institute', description }: PublicLayoutProps) {
   const [showOptions, setShowOptions] = useState(false);
-  const { categories } = usePage().props as any;
 
   const whatsappContacts = [
     { label: 'Admin', number: '+6285731039058' },
@@ -31,7 +30,7 @@ export default function PublicLayout({ children, title = 'Ganesha Science Instit
       </Head>
       
       {/* Navbar */}
-      <GaneshaNavbar categories={categories} />
+      <GaneshaNavbar />
       
       {/* Main Content */}
       <main className="flex flex-col min-h-screen">

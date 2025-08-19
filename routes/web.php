@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\UserEngagementAnalyticsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\MyBooksController;
 use App\Http\Controllers\Admin\CategoryController as AdminCategoryController;
 use App\Http\Controllers\Admin\BookController as AdminBookController;
 use App\Http\Controllers\Admin\ChapterController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\TransactionSyncController;
 use App\Http\Controllers\WebhookController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\ReadingProgressController;
@@ -64,6 +66,9 @@ Route::prefix('api')->group(function () {
     Route::get('categories', [AdminCategoryController::class, 'getGroupedBySlug'])->name('api.categories.grouped');
     Route::get('categories/{slug}', [AdminCategoryController::class, 'getBySlug'])->name('api.categories.by-slug');
     Route::get('categories/stats', [AdminCategoryController::class, 'getStats'])->name('api.categories.stats');
+
+    // Navbar categories API
+    Route::get('navbar/categories', [CategoryController::class, 'getForNavbar'])->name('api.navbar.categories');
 });
 
 
@@ -71,7 +76,6 @@ Route::prefix('api')->group(function () {
 // Webhook routes (public, no middleware)
 // =====================================================
 Route::post('webhook/midtrans', [WebhookController::class, 'midtrans'])->name('webhook.midtrans');
-
 
 // =====================================================
 // User routes (auth + verified + role:user)
@@ -84,9 +88,7 @@ Route::middleware(['auth', 'verified', 'role:user'])->group(function () {
     Route::put('profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password.update');
     Route::delete('profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    Route::get('my-books', function () {
-        return Inertia::render('user/my-books');
-    })->name('my-books');
+    Route::get('my-books', [MyBooksController::class, 'index'])->name('my-books');
 
     Route::get('reading-history', function () {
         return Inertia::render('user/reading-history');
@@ -94,7 +96,9 @@ Route::middleware(['auth', 'verified', 'role:user'])->group(function () {
 
     // Payment routes
     Route::prefix('payment')->name('payment.')->group(function () {
+        Route::get('book/{book}', [PaymentController::class, 'showBookPayment'])->name('book.show');
         Route::post('book/{book}', [PaymentController::class, 'purchaseBook'])->name('book');
+        Route::get('chapter/{chapter}', [PaymentController::class, 'showChapterPayment'])->name('chapter.show');
         Route::post('chapter/{chapter}', [PaymentController::class, 'purchaseChapter'])->name('chapter');
         Route::get('success/{transaction}', [PaymentController::class, 'success'])->name('success');
         Route::get('failed/{transaction}', [PaymentController::class, 'failed'])->name('failed');
@@ -115,6 +119,8 @@ Route::middleware(['auth', 'verified', 'role:user'])->group(function () {
         Route::get('/', [TransactionController::class, 'index'])->name('index');
         Route::get('{transaction}', [TransactionController::class, 'show'])->name('show');
         Route::post('{transaction}/retry', [TransactionController::class, 'retry'])->name('retry');
+        Route::post('sync-pending', [TransactionController::class, 'syncPending'])->name('sync-pending');
+        Route::post('sync-all', [TransactionController::class, 'syncAll'])->name('sync-all');
     });
 
     // Reading Progress routes
@@ -141,6 +147,20 @@ Route::middleware(['auth', 'verified', 'role:user'])->group(function () {
         Route::post('/{book}', [ReviewController::class, 'store'])->name('store.legacy');
         Route::put('/{review}', [ReviewController::class, 'update'])->name('update.legacy');
         Route::delete('/{review}', [ReviewController::class, 'destroy'])->name('destroy.legacy');
+    });
+
+    // Author routes
+    Route::prefix('author')->name('author.')->group(function () {
+        Route::get('pricing', [App\Http\Controllers\AuthorController::class, 'pricing'])->name('pricing');
+        Route::get('dashboard', [App\Http\Controllers\AuthorController::class, 'dashboard'])->name('dashboard');
+        Route::get('submit', [App\Http\Controllers\AuthorController::class, 'create'])->name('create');
+        Route::post('submit', [App\Http\Controllers\AuthorController::class, 'store'])->name('store');
+        Route::get('submissions', [App\Http\Controllers\AuthorController::class, 'submissions'])->name('submissions');
+        Route::get('submissions/{submission}', [App\Http\Controllers\AuthorController::class, 'show'])->name('show');
+        Route::get('submissions/{submission}/download', [App\Http\Controllers\AuthorController::class, 'downloadPdf'])->name('download');
+        Route::get('submissions/{submission}/download-alt', [App\Http\Controllers\AuthorController::class, 'downloadPdfAlt'])->name('download-alt');
+        Route::get('submissions/{submission}/debug-download', [App\Http\Controllers\AuthorController::class, 'debugDownload'])->name('debug-download');
+        Route::post('subscribe/{plan}', [App\Http\Controllers\AuthorController::class, 'subscribe'])->name('subscribe');
     });
 });
 
@@ -250,6 +270,19 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
     Route::get('settings', function () {
         return Inertia::render('admin/settings/index');
     })->name('settings');
+
+    // Author Submission Management
+    Route::prefix('author-submissions')->name('author-submissions.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Admin\AuthorSubmissionController::class, 'index'])->name('index');
+        Route::get('{submission}', [App\Http\Controllers\Admin\AuthorSubmissionController::class, 'show'])->name('show');
+        Route::put('{submission}/status', [App\Http\Controllers\Admin\AuthorSubmissionController::class, 'updateStatus'])->name('update-status');
+        Route::post('{submission}/approve-publish', [App\Http\Controllers\Admin\AuthorSubmissionController::class, 'approveAndPublish'])->name('approve-publish');
+        Route::post('{submission}/reject', [App\Http\Controllers\Admin\AuthorSubmissionController::class, 'reject'])->name('reject');
+        Route::post('{submission}/quick-approve', [App\Http\Controllers\Admin\AuthorSubmissionController::class, 'quickApprove'])->name('quick-approve');
+        Route::post('{submission}/quick-reject', [App\Http\Controllers\Admin\AuthorSubmissionController::class, 'quickReject'])->name('quick-reject');
+        Route::get('{submission}/download', [App\Http\Controllers\Admin\AuthorSubmissionController::class, 'downloadPdf'])->name('download');
+        Route::post('bulk-update', [App\Http\Controllers\Admin\AuthorSubmissionController::class, 'bulkUpdateStatus'])->name('bulk-update');
+    });
 });
 
 

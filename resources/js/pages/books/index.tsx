@@ -10,7 +10,6 @@ import {
     Clock,
     User,
     Tag,
-    Heart,
     Eye
 } from 'lucide-react';
 import { useState } from 'react';
@@ -48,7 +47,7 @@ interface Book {
 }
 
 interface BooksPageProps {
-    books: {
+    books?: {
         data: Book[];
         links?: any[];
         meta?: any;
@@ -56,27 +55,34 @@ interface BooksPageProps {
 }
 
 export default function BooksIndex() {
-    const { books } = usePage<BooksPageProps>().props;
+    const pageProps = usePage<BooksPageProps>().props;
+    const { books } = pageProps;
     const [searchTerm, setSearchTerm] = useState('');
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [sortBy, setSortBy] = useState('latest');
 
-    const filteredBooks = books.data.filter(book =>
-        book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const filteredBooks = (books?.data || []).filter(book =>
+        book && 
+        book.title && 
+        book.author?.name &&
+        book.category?.name &&
+        (book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         book.author.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        book.category.name.toLowerCase().includes(searchTerm.toLowerCase())
+        book.category.name.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
-    const sortedBooks = [...filteredBooks].sort((a, b) => {
+    const sortedBooks = [...(filteredBooks || [])].sort((a, b) => {
+        if (!a || !b) return 0;
+        
         switch (sortBy) {
             case 'title':
-                return a.title.localeCompare(b.title);
+                return (a.title || '').localeCompare(b.title || '');
             case 'author':
-                return a.author.name.localeCompare(b.author.name);
+                return (a.author?.name || '').localeCompare(b.author?.name || '');
             case 'price-low':
-                return a.price - b.price;
+                return (a.price || 0) - (b.price || 0);
             case 'price-high':
-                return b.price - a.price;
+                return (b.price || 0) - (a.price || 0);
             case 'latest':
             default:
                 return new Date(b.publication_date).getTime() - new Date(a.publication_date).getTime();
@@ -84,8 +90,8 @@ export default function BooksIndex() {
     });
 
     // Separate featured and regular books
-    const featuredBooks = books.data.filter(book => book.is_featured && book.is_published);
-    const regularBooks = sortedBooks.filter(book => !book.is_featured);
+    const featuredBooks = (books?.data || []).filter(book => book?.is_featured && book?.is_published);
+    const regularBooks = (sortedBooks || []).filter(book => book && !book.is_featured);
 
     const formatPrice = (price: number, discount?: number) => {
         if (discount && discount > 0) {
@@ -161,7 +167,7 @@ export default function BooksIndex() {
                         <div className="flex flex-wrap justify-center gap-4">
                             <div className="flex items-center gap-3 bg-white/15 backdrop-blur-sm rounded-full px-6 py-3 border border-white/20">
                                 <BookOpen className="w-5 h-5 text-green-100" />
-                                <span className="font-medium text-white">{books.data.length} E-Books</span>
+                                <span className="font-medium text-white">{books?.data?.length || 0} E-Books</span>
                             </div>
                             <div className="flex items-center gap-3 bg-white/15 backdrop-blur-sm rounded-full px-6 py-3 border border-white/20">
                                 <Star className="w-5 h-5 text-yellow-300" />
@@ -409,14 +415,14 @@ export default function BooksIndex() {
                                         {featuredBooks.length > 0 ? 'Semua E-Books' : 'E-Books Tersedia'}
                                     </h2>
                                     <p className="text-gray-600">
-                                        Menampilkan {regularBooks.length} dari {books.meta?.total || books.data.length} e-books
+                                        Menampilkan {regularBooks.length} dari {books?.meta?.total || books?.data?.length || 0} e-books
                                     </p>
                                 </div>
                                 
                                 <div className="flex items-center gap-4 text-sm">
                                     <div className="bg-white px-4 py-2 rounded-lg border shadow-sm">
                                         <span className="text-gray-500">Total: </span>
-                                        <span className="font-semibold text-green-600">{books.data.length}</span>
+                                        <span className="font-semibold text-green-600">{books?.data?.length || 0}</span>
                                     </div>
                                     {featuredBooks.length > 0 && (
                                         <div className="bg-white px-4 py-2 rounded-lg border shadow-sm">
@@ -534,7 +540,7 @@ export default function BooksIndex() {
                                                 )}
 
                                                 {/* Price and Actions */}
-                                                <div className={`flex items-end justify-between pt-4 border-t border-gray-100 ${viewMode === 'grid' ? 'mt-auto' : ''}`}>
+                                                <div className={`flex items-center justify-between pt-4 border-t border-gray-100 ${viewMode === 'grid' ? 'mt-auto' : ''}`}>
                                                     <div className="flex flex-col">
                                                         {priceInfo.discounted ? (
                                                             <>
@@ -556,19 +562,15 @@ export default function BooksIndex() {
                                                         )}
                                                     </div>
 
-                                                    <div className="flex items-center gap-2">
-                                                        <button className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all duration-200">
-                                                            <Heart className="w-4 h-4" />
-                                                        </button>
-                                                        <Link 
-                                                            href={`/books/${book.slug}`}
-                                                            >
-                                                            <Eye className="w-4 h-4" />
-                                                            <span className={viewMode === 'list' ? 'hidden sm:inline' : 'hidden sm:inline'}>
-                                                                {viewMode === 'list' ? 'Detail' : 'Lihat'}
-                                                            </span>
-                                                        </Link>
-                                                    </div>
+                                                    <Link 
+                                                        href={`/books/${book.slug}`}
+                                                        className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md transform hover:-translate-y-0.5 text-sm"
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                        <span className={viewMode === 'list' ? 'hidden sm:inline' : 'hidden sm:inline'}>
+                                                            {viewMode === 'list' ? 'Detail' : 'Detail'}
+                                                        </span>
+                                                    </Link>
                                                 </div>
                                             </div>
                                         </motion.div>
@@ -577,7 +579,7 @@ export default function BooksIndex() {
                             </div>
 
                             {/* Pagination */}
-                            {books.links && books.links.length > 3 && (
+                            {books?.links && books?.links.length > 3 && (
                                 <motion.div 
                                     className="mt-12 flex justify-center"
                                     initial={{ opacity: 0, y: 20 }}
@@ -585,7 +587,7 @@ export default function BooksIndex() {
                                     transition={{ duration: 0.4, delay: 0.2 }}
                                 >
                                     <div className="flex gap-2">
-                                        {books.links.map((link, index) => {
+                                        {books?.links?.map((link, index) => {
                                             if (!link.url) {
                                                 return (
                                                     <span

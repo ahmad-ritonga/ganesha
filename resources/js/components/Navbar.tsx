@@ -10,7 +10,8 @@ import {
 } from "@/components/ui/resizable-navbar";
 import { useState, useEffect } from "react";
 import { Link, usePage } from "@inertiajs/react";
-import { User, Settings, LogOut, ChevronDown, BookOpen, Users, Atom, Heart, Wrench } from "lucide-react";
+import { User, Settings, LogOut, ChevronDown, BookOpen, Users, Atom, Heart, Wrench, ShoppingCart, History, PenTool } from "lucide-react";
+import axios from 'axios';
 
 interface NavItem {
   name: string;
@@ -30,15 +31,16 @@ interface Category {
 
 interface GaneshaNavbarProps {
   className?: string;
-  categories?: Record<string, Category[]>;
 }
 
-export default function GaneshaNavbar({ className, categories = {} }: GaneshaNavbarProps) {
+export default function GaneshaNavbar({ className }: GaneshaNavbarProps) {
   const { auth } = usePage().props as any;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [hovered, setHovered] = useState<number | null>(null);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showCategoriesDropdown, setShowCategoriesDropdown] = useState(false);
+  const [categories, setCategories] = useState<Record<string, Category[]>>({});
+  const [loadingCategories, setLoadingCategories] = useState(false);
 
   // Navigation items for guests
   const guestNavItems: NavItem[] = [
@@ -51,17 +53,13 @@ export default function GaneshaNavbar({ className, categories = {} }: GaneshaNav
       link: "/about",
     },
     {
-      name: "Menu",
+      name: "Kategori",
       link: "/categories",
       hasDropdown: true,
     },
     {
       name: "E-Books",
       link: "/books",
-    },
-    {
-      name: "My-Books",
-      link: "/my-books",
     },
   ];
 
@@ -72,10 +70,15 @@ export default function GaneshaNavbar({ className, categories = {} }: GaneshaNav
       link: "/",
     },
     {
+      name: "Tentang",
+      link: "/about",
+    },
+    {
       name: "Kategori",
       link: "/categories",
       hasDropdown: true,
     },
+    
     {
       name: "E-Books",
       link: "/books",
@@ -83,18 +86,6 @@ export default function GaneshaNavbar({ className, categories = {} }: GaneshaNav
     {
       name: "Buku Saya",
       link: "/my-books",
-    },
-    {
-      name: "Transaksi",
-      link: "/transactions",
-    },
-    {
-      name: "Riwayat Baca",
-      link: "/reading-history",
-    },
-    {
-      name: "Profil",
-      link: "/profile",
     },
   ];
 
@@ -127,35 +118,59 @@ export default function GaneshaNavbar({ className, categories = {} }: GaneshaNav
 
   const navItems = getNavItems();
 
-  // User dropdown menu items
+  // User dropdown menu items - focused on personal/account items only
   const userDropdownItems = auth?.user?.role === 'admin' ? [
     {
-      name: "Dashboard Admin",
-      link: "/admin/dashboard",
-      icon: Settings,
-    },
-    {
-      name: "Pengaturan Profil",
+      name: "Profil Saya",
       link: "/profile",
       icon: User,
+    },
+    {
+      name: "Pengaturan Admin",
+      link: "/admin/settings",
+      icon: Settings,
     },
   ] : [
     {
-      name: "Pengaturan Profil",
+      name: "Profil Saya",
       link: "/profile",
       icon: User,
     },
     {
-      name: "Buku Saya",
-      link: "/my-books",
-      icon: User,
+      name: "Riwayat Transaksi",
+      link: "/transactions",
+      icon: ShoppingCart,
     },
     {
-      name: "Transaksi",
-      link: "/transactions",
-      icon: User,
+      name: "Riwayat Baca",
+      link: "/reading-history",
+      icon: History,
     },
+    // Add Author Dashboard if user has active author subscription
+    ...(auth?.user?.has_active_author_subscription ? [{
+      name: "Dashboard Penulis",
+      link: "/author/dashboard",
+      icon: PenTool,
+    }] : []),
   ];
+
+  // Fetch categories from API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      setLoadingCategories(true);
+      try {
+        const response = await axios.get('/api/navbar/categories');
+        setCategories(response.data || {});
+      } catch (error) {
+        console.error('Failed to fetch categories:', error);
+        setCategories({});
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   // Categories sudah digroup berdasarkan slug dari backend
   const categoriesBySlug = {
@@ -165,17 +180,8 @@ export default function GaneshaNavbar({ className, categories = {} }: GaneshaNav
     interdisipliner: categories.interdisipliner || []
   };
 
-  // Debug log to check categories data
-  useEffect(() => {
-    console.log('Navbar Categories Debug:', {
-      categories,
-      categoriesBySlug,
-      totalEksakta: categoriesBySlug.eksakta.length,
-      totalSoshum: categoriesBySlug.soshum.length,
-      totalTerapan: categoriesBySlug.terapan.length,
-      totalInterdisipliner: categoriesBySlug.interdisipliner.length
-    });
-  }, [categories]);
+  // Debug untuk memastikan categories tersedia
+  const hasCategoriesData = Object.values(categoriesBySlug).some(cats => cats.length > 0);
 
   const slugConfig = [
     {
@@ -215,7 +221,7 @@ export default function GaneshaNavbar({ className, categories = {} }: GaneshaNav
       if (!target.closest('[data-dropdown="categories"]')) {
         setShowCategoriesDropdown(false);
       }
-      if (!target.closest('[data-dropdown="user"]')) {
+      if (!target.closest('[data-dropdown="user"]') && !target.closest('[data-dropdown="mobile-user"]')) {
         setShowUserDropdown(false);
       }
     };
@@ -279,55 +285,71 @@ export default function GaneshaNavbar({ className, categories = {} }: GaneshaNav
 
                         {/* Categories Grid */}
                         <div className="p-6">
-                          <div className="grid grid-cols-2 gap-6">
-                            {slugConfig.map((slug) => {
-                              const Icon = slug.icon;
-                              const slugCategories = categoriesBySlug[slug.key as keyof typeof categoriesBySlug];
-                              
-                              if (slugCategories.length === 0) return null;
+                          {loadingCategories ? (
+                            <div className="text-center py-8">
+                              <div className="text-gray-500 mb-4">
+                                <BookOpen className="h-12 w-12 mx-auto mb-2 text-gray-300 animate-pulse" />
+                                <p className="text-sm">Memuat kategori...</p>
+                              </div>
+                            </div>
+                          ) : hasCategoriesData ? (
+                            <div className="grid grid-cols-2 gap-6">
+                              {slugConfig.map((slug) => {
+                                const Icon = slug.icon;
+                                const slugCategories = categoriesBySlug[slug.key as keyof typeof categoriesBySlug];
+                                
+                                if (slugCategories.length === 0) return null;
 
-                              return (
-                                <div key={slug.key} className="space-y-3">
-                                  {/* Slug Header */}
-                                  <div className="flex items-center gap-3 pb-2 border-b border-gray-100">
-                                    <div className={`p-2 rounded-lg bg-${slug.color}-100`}>
-                                      <Icon className={`h-5 w-5 text-${slug.color}-600`} />
+                                return (
+                                  <div key={slug.key} className="space-y-3">
+                                    {/* Slug Header */}
+                                    <div className="flex items-center gap-3 pb-2 border-b border-gray-100">
+                                      <div className={`p-2 rounded-lg bg-${slug.color}-100`}>
+                                        <Icon className={`h-5 w-5 text-${slug.color}-600`} />
+                                      </div>
+                                      <div>
+                                        <h4 className="font-semibold text-gray-900 text-sm">{slug.name}</h4>
+                                        <p className="text-xs text-gray-500">{slug.description}</p>
+                                      </div>
                                     </div>
-                                    <div>
-                                      <h4 className="font-semibold text-gray-900 text-sm">{slug.name}</h4>
-                                      <p className="text-xs text-gray-500">{slug.description}</p>
+
+                                    {/* Categories List */}
+                                    <div className="space-y-1">
+                                      {slugCategories.slice(0, 6).map((category) => (
+                                        <Link
+                                          key={category.id}
+                                          href={`/books?category=${category.id}`}
+                                          className="flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-emerald-600 rounded-lg transition-all duration-200 group"
+                                        >
+                                          <span className="font-medium">{category.name}</span>
+                                          {category.books_count && (
+                                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full group-hover:bg-emerald-100 group-hover:text-emerald-700">
+                                              {category.books_count}
+                                            </span>
+                                          )}
+                                        </Link>
+                                      ))}
+                                      {slugCategories.length > 6 && (
+                                        <Link
+                                          href={`/books?slug=${slug.key}`}
+                                          className="block px-3 py-2 text-sm text-emerald-600 hover:text-emerald-700 font-medium"
+                                        >
+                                          Lihat semua ({slugCategories.length})
+                                        </Link>
+                                      )}
                                     </div>
                                   </div>
-
-                                  {/* Categories List */}
-                                  <div className="space-y-1">
-                                    {slugCategories.slice(0, 6).map((category) => (
-                                      <Link
-                                        key={category.id}
-                                        href={`/books?category=${category.id}`}
-                                        className="flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-emerald-600 rounded-lg transition-all duration-200 group"
-                                      >
-                                        <span className="font-medium">{category.name}</span>
-                                        {category.books_count && (
-                                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full group-hover:bg-emerald-100 group-hover:text-emerald-700">
-                                            {category.books_count}
-                                          </span>
-                                        )}
-                                      </Link>
-                                    ))}
-                                    {slugCategories.length > 6 && (
-                                      <Link
-                                        href={`/books?slug=${slug.key}`}
-                                        className="block px-3 py-2 text-sm text-emerald-600 hover:text-emerald-700 font-medium"
-                                      >
-                                        Lihat semua ({slugCategories.length})
-                                      </Link>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="text-center py-8">
+                              <div className="text-gray-500 mb-4">
+                                <BookOpen className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                                <p className="text-sm">Tidak ada kategori tersedia</p>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Footer */}
                           <div className="mt-6 pt-4 border-t border-gray-100">
@@ -490,10 +512,107 @@ export default function GaneshaNavbar({ className, categories = {} }: GaneshaNav
         <MobileNav>
           <MobileNavHeader>
             <GaneshaLogo />
-            <MobileNavToggle
-              isOpen={isMobileMenuOpen}
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            />
+            <div className="flex items-center gap-2">
+              {/* Mobile User Avatar (only for authenticated users) */}
+              {auth?.user && (
+                <div 
+                  className="relative lg:hidden"
+                  data-dropdown="mobile-user"
+                  onMouseEnter={() => setShowUserDropdown(true)}
+                  onMouseLeave={() => setShowUserDropdown(false)}
+                >
+                  <button 
+                    onClick={() => setShowUserDropdown(!showUserDropdown)}
+                    className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-emerald-50 transition-all duration-200"
+                  >
+                    <div className="h-8 w-8 rounded-full overflow-hidden bg-gradient-to-r from-emerald-500 to-cyan-500 border-2 border-emerald-200 shadow-sm">
+                      {auth.user.avatar_url ? (
+                        <img 
+                          src={auth.user.avatar_url} 
+                          alt={auth.user.name} 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <span className="text-white font-bold text-xs">
+                            {auth.user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Mobile User Dropdown */}
+                  <div className={`absolute right-0 top-full mt-1 w-64 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden transition-all duration-200 z-50 ${
+                    showUserDropdown 
+                      ? 'opacity-100 translate-y-0 visible' 
+                      : 'opacity-0 translate-y-2 invisible'
+                  }`}>
+                    {/* User Info Header */}
+                    <div className="px-4 py-3 bg-gradient-to-r from-emerald-50 to-cyan-50 border-b border-emerald-100">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full overflow-hidden bg-gradient-to-r from-emerald-500 to-cyan-500 border-2 border-emerald-200">
+                          {auth.user.avatar_url ? (
+                            <img 
+                              src={auth.user.avatar_url} 
+                              alt={auth.user.name} 
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <span className="text-white font-bold text-sm">
+                                {auth.user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-900 text-sm truncate">
+                            {auth.user.name}
+                          </p>
+                          <p className="text-xs text-gray-600 truncate">
+                            {auth.user.email}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Menu Items */}
+                    <div className="py-1">
+                      {userDropdownItems.map((item, idx) => (
+                        <Link
+                          key={`mobile-dropdown-${idx}`}
+                          href={item.link}
+                          onClick={() => setShowUserDropdown(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200"
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span className="text-sm font-medium">{item.name}</span>
+                        </Link>
+                      ))}
+                      
+                      {/* Logout */}
+                      <div className="border-t border-gray-100 mt-1 pt-1">
+                        <Link
+                          href="/logout"
+                          method="post"
+                          onClick={() => setShowUserDropdown(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-red-600 hover:bg-red-50 transition-all duration-200"
+                        >
+                          <LogOut className="h-4 w-4" />
+                          <span className="text-sm font-medium">Keluar</span>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              <MobileNavToggle
+                isOpen={isMobileMenuOpen}
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              />
+            </div>
           </MobileNavHeader>
 
           <MobileNavMenu
@@ -501,45 +620,17 @@ export default function GaneshaNavbar({ className, categories = {} }: GaneshaNav
             onClose={() => setIsMobileMenuOpen(false)}
           >
             {/* Mobile Navigation Items */}
-            <div className="w-full space-y-4">
+            <div className="w-full space-y-2">
               {navItems.map((item, idx) => (
                 <div key={`mobile-link-${idx}`}>
                   {item.hasDropdown ? (
-                    <div className="space-y-2">
-                      <div className="px-4 py-2 font-semibold text-gray-900 border-b border-gray-200">
-                        {item.name}
-                      </div>
-                      {/* Mobile Categories */}
-                      <div className="space-y-4 px-2">
-                        {slugConfig.map((slug) => {
-                          const Icon = slug.icon;
-                          const slugCategories = categoriesBySlug[slug.key as keyof typeof categoriesBySlug];
-                          
-                          if (slugCategories.length === 0) return null;
-
-                          return (
-                            <div key={slug.key} className="space-y-2">
-                              <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-                                <Icon className="h-4 w-4 text-gray-600" />
-                                <span className="font-medium text-sm text-gray-900">{slug.name}</span>
-                              </div>
-                              <div className="space-y-1 ml-4">
-                                {slugCategories.slice(0, 4).map((category) => (
-                                  <Link
-                                    key={category.id}
-                                    href={`/books?category=${category.id}`}
-                                    onClick={() => setIsMobileMenuOpen(false)}
-                                    className="block px-3 py-2 text-sm text-gray-700 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all duration-200"
-                                  >
-                                    {category.name}
-                                  </Link>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                    <Link
+                      href={item.link}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="block w-full text-left px-4 py-3 text-black hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all duration-200 font-medium"
+                    >
+                      {item.name}
+                    </Link>
                   ) : (
                     <Link
                       href={item.link}
@@ -553,70 +644,21 @@ export default function GaneshaNavbar({ className, categories = {} }: GaneshaNav
               ))}
             </div>
             
-            {/* Mobile action buttons */}
-            <div className="w-full space-y-4 pt-6 mt-6 border-t border-gray-200">
-              {!auth?.user ? (
-                // Guest mobile buttons
-                <>
-                  <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="block w-full">
-                    <NavbarButton variant="secondary" className="w-full">
-                      Masuk
-                    </NavbarButton>
-                  </Link>
-                  <Link href="/register" onClick={() => setIsMobileMenuOpen(false)} className="block w-full">
-                    <NavbarButton variant="primary" className="w-full">
-                      Daftar
-                    </NavbarButton>
-                  </Link>
-                </>
-              ) : (
-                // Authenticated user mobile buttons
-                <>
-                  <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-emerald-50 to-cyan-50 rounded-xl border border-emerald-200">
-                    <div className="h-14 w-14 rounded-full overflow-hidden bg-gradient-to-r from-emerald-500 to-cyan-500 border-2 border-emerald-300 shadow-lg">
-                      {auth.user.avatar_url ? (
-                        <img 
-                          src={auth.user.avatar_url} 
-                          alt={auth.user.name} 
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <span className="text-white font-bold text-lg">
-                            {auth.user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-bold text-black text-lg">
-                        {auth.user.name}
-                      </p>
-                      <p className="text-sm text-slate-600">
-                        {auth.user.email}
-                      </p>
-                      <p className="text-xs text-emerald-600 font-medium mt-1">
-                        {auth.user.role === 'admin' ? 'Administrator' : 'User'}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <Link href="/profile" onClick={() => setIsMobileMenuOpen(false)} className="block w-full">
-                    <NavbarButton variant="secondary" className="w-full">
-                      <User className="h-4 w-4 mr-2" />
-                      Pengaturan Profil
-                    </NavbarButton>
-                  </Link>
-                  
-                  <Link href="/logout" method="post" onClick={() => setIsMobileMenuOpen(false)} className="block w-full">
-                    <NavbarButton variant="dark" className="w-full">
-                      <LogOut className="h-4 w-4 mr-2" />
-                      Keluar
-                    </NavbarButton>
-                  </Link>
-                </>
-              )}
-            </div>
+            {/* Mobile action buttons for guests only */}
+            {!auth?.user && (
+              <div className="w-full space-y-4 pt-6 mt-6 border-t border-gray-200">
+                <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="block w-full">
+                  <NavbarButton variant="secondary" className="w-full">
+                    Masuk
+                  </NavbarButton>
+                </Link>
+                <Link href="/register" onClick={() => setIsMobileMenuOpen(false)} className="block w-full">
+                  <NavbarButton variant="primary" className="w-full">
+                    Daftar
+                  </NavbarButton>
+                </Link>
+              </div>
+            )}
           </MobileNavMenu>
         </MobileNav>
       </Navbar>

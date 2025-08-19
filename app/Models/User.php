@@ -237,6 +237,20 @@ class User extends Authenticatable
     }
 
     /**
+     * Get list of purchased chapter IDs for a specific book
+     */
+    public function getPurchasedChapterIds($bookId): array
+    {
+        return UserPurchase::where('user_id', $this->id)
+            ->where('purchasable_type', 'chapter')
+            ->whereHas('chapter', function ($query) use ($bookId) {
+                $query->where('book_id', $bookId);
+            })
+            ->pluck('purchasable_id')
+            ->toArray();
+    }
+
+    /**
      * Check if user can access a chapter
      */
     public function canAccessChapter(Chapter $chapter): bool
@@ -523,6 +537,50 @@ class User extends Authenticatable
             'approved_reviews' => $this->approvedReviews()->count(),
             'average_rating_given' => round($this->reviews()->avg('rating'), 2),
             'reviews_with_text' => $this->reviews()->whereNotNull('review_text')->count(),
+        ];
+    }
+
+    /**
+     * Author submission relationships
+     */
+    public function authorSubmissions(): HasMany
+    {
+        return $this->hasMany(AuthorSubmission::class);
+    }
+
+    public function authorSubscriptions(): HasMany
+    {
+        return $this->hasMany(UserAuthorSubscription::class);
+    }
+
+    public function activeAuthorSubscription()
+    {
+        return $this->authorSubscriptions()->active()->first();
+    }
+
+    public function hasActiveAuthorSubscription(): bool
+    {
+        return $this->authorSubscriptions()->active()->exists();
+    }
+
+    public function canSubmitBooks(): bool
+    {
+        $subscription = $this->activeAuthorSubscription();
+        return $subscription && $subscription->canSubmitMoreBooks();
+    }
+
+    public function getAuthorStats()
+    {
+        $submissions = $this->authorSubmissions();
+
+        return [
+            'total_submissions' => $submissions->count(),
+            'pending_submissions' => $submissions->where('status', 'pending')->count(),
+            'approved_submissions' => $submissions->where('status', 'approved')->count(),
+            'published_books' => $submissions->where('status', 'published')->count(),
+            'rejected_submissions' => $submissions->where('status', 'rejected')->count(),
+            'has_active_subscription' => $this->hasActiveAuthorSubscription(),
+            'can_submit_books' => $this->canSubmitBooks(),
         ];
     }
 }

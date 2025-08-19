@@ -15,6 +15,22 @@ import {
     CheckCircle,
     BarChart3
 } from 'lucide-react';
+import {
+    LineChart,
+    Line,
+    AreaChart,
+    Area,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+    PieChart,
+    Pie,
+    Cell,
+    BarChart,
+    Bar
+} from 'recharts';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -22,6 +38,25 @@ const breadcrumbs: BreadcrumbItem[] = [
         href: '/admin/dashboard',
     },
 ];
+
+interface ChartDataPoint {
+    date: string;
+    users: number;
+    books: number;
+    revenue: number;
+    transactions: number;
+}
+
+interface MonthlyRevenueData {
+    month: string;
+    revenue: number;
+}
+
+interface CategoryData {
+    name: string;
+    value: number;
+    color: string;
+}
 
 interface DashboardStats {
     users: {
@@ -62,9 +97,20 @@ interface DashboardProps {
     recentUsers: User[];
     recentBooks: (Book & { author: User })[];
     recentTransactions: (Transaction & { user: User })[];
+    chartData: ChartDataPoint[];
+    monthlyRevenueData: MonthlyRevenueData[];
+    categoryData: CategoryData[];
 }
 
-export default function Dashboard({ stats, recentUsers, recentBooks, recentTransactions }: DashboardProps) {
+export default function Dashboard({ 
+    stats, 
+    recentUsers, 
+    recentBooks, 
+    recentTransactions,
+    chartData = [],
+    monthlyRevenueData = [],
+    categoryData = []
+}: DashboardProps) {
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('id-ID', {
             style: 'currency',
@@ -92,6 +138,37 @@ export default function Dashboard({ stats, recentUsers, recentBooks, recentTrans
 
     const getGrowthColor = (growth: number) => {
         return growth >= 0 ? 'text-green-600' : 'text-red-600';
+    };
+
+    // Custom tooltip formatters
+    const CustomTooltip = ({ active, payload, label }: any) => {
+        if (active && payload && payload.length) {
+            return (
+                <div className="bg-white dark:bg-neutral-800 p-3 border border-gray-200 dark:border-neutral-700 rounded-lg shadow-lg">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
+                    {payload.map((entry: any, index: number) => (
+                        <p key={index} className="text-sm" style={{ color: entry.color }}>
+                            {entry.name}: {entry.name === 'revenue' ? formatCurrency(entry.value) : entry.value}
+                        </p>
+                    ))}
+                </div>
+            );
+        }
+        return null;
+    };
+
+    const RevenueTooltip = ({ active, payload, label }: any) => {
+        if (active && payload && payload.length) {
+            return (
+                <div className="bg-white dark:bg-neutral-800 p-3 border border-gray-200 dark:border-neutral-700 rounded-lg shadow-lg">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
+                    <p className="text-sm text-blue-600">
+                        Pendapatan: {formatCurrency(payload[0].value)}
+                    </p>
+                </div>
+            );
+        }
+        return null;
     };
 
     return (
@@ -197,6 +274,219 @@ export default function Dashboard({ stats, recentUsers, recentBooks, recentTrans
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
                                     Dari {stats.content.reviews} review
                                 </p>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Charts Section */}
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                        {/* Activity Chart */}
+                        <Card className="bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 shadow-sm">
+                            <CardHeader className="pb-4">
+                                <CardTitle className="text-lg font-semibold text-gray-900 dark:text-white">
+                                    Aktivitas 7 Hari Terakhir
+                                </CardTitle>
+                                <CardDescription className="text-gray-500 dark:text-gray-400">
+                                    Trend pengguna, buku, dan transaksi
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {chartData.length > 0 ? (
+                                    <div className="h-80">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <LineChart data={chartData}>
+                                                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                                                <XAxis 
+                                                    dataKey="date" 
+                                                    className="text-xs"
+                                                    tick={{ fill: 'currentColor', fontSize: 12 }}
+                                                />
+                                                <YAxis 
+                                                    className="text-xs"
+                                                    tick={{ fill: 'currentColor', fontSize: 12 }}
+                                                />
+                                                <Tooltip content={<CustomTooltip />} />
+                                                <Line 
+                                                    type="monotone" 
+                                                    dataKey="users" 
+                                                    stroke="#3b82f6" 
+                                                    strokeWidth={2}
+                                                    name="Pengguna"
+                                                    dot={{ fill: '#3b82f6', strokeWidth: 2 }}
+                                                />
+                                                <Line 
+                                                    type="monotone" 
+                                                    dataKey="books" 
+                                                    stroke="#10b981" 
+                                                    strokeWidth={2}
+                                                    name="Buku"
+                                                    dot={{ fill: '#10b981', strokeWidth: 2 }}
+                                                />
+                                                <Line 
+                                                    type="monotone" 
+                                                    dataKey="transactions" 
+                                                    stroke="#f59e0b" 
+                                                    strokeWidth={2}
+                                                    name="Transaksi"
+                                                    dot={{ fill: '#f59e0b', strokeWidth: 2 }}
+                                                />
+                                            </LineChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                ) : (
+                                    <div className="h-80 flex items-center justify-center text-gray-500 dark:text-gray-400">
+                                        <div className="text-center">
+                                            <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                            <p>Belum ada data aktivitas</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Revenue Chart */}
+                        <Card className="bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 shadow-sm">
+                            <CardHeader className="pb-4">
+                                <CardTitle className="text-lg font-semibold text-gray-900 dark:text-white">
+                                    Pendapatan Bulanan
+                                </CardTitle>
+                                <CardDescription className="text-gray-500 dark:text-gray-400">
+                                    Trend pendapatan 6 bulan terakhir
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {monthlyRevenueData.length > 0 ? (
+                                    <div className="h-80">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={monthlyRevenueData}>
+                                                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                                                <XAxis 
+                                                    dataKey="month" 
+                                                    className="text-xs"
+                                                    tick={{ fill: 'currentColor', fontSize: 12 }}
+                                                />
+                                                <YAxis 
+                                                    className="text-xs"
+                                                    tick={{ fill: 'currentColor', fontSize: 12 }}
+                                                    tickFormatter={(value) => `${value / 1000}K`}
+                                                />
+                                                <Tooltip content={<RevenueTooltip />} />
+                                                <Area
+                                                    type="monotone"
+                                                    dataKey="revenue"
+                                                    stroke="#8b5cf6"
+                                                    fillOpacity={0.3}
+                                                    fill="#8b5cf6"
+                                                    strokeWidth={2}
+                                                />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                ) : (
+                                    <div className="h-80 flex items-center justify-center text-gray-500 dark:text-gray-400">
+                                        <div className="text-center">
+                                            <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                            <p>Belum ada data pendapatan</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Category Distribution and Bar Chart */}
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                        {/* Category Pie Chart */}
+                        <Card className="bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 shadow-sm">
+                            <CardHeader className="pb-4">
+                                <CardTitle className="text-lg font-semibold text-gray-900 dark:text-white">
+                                    Distribusi Kategori
+                                </CardTitle>
+                                <CardDescription className="text-gray-500 dark:text-gray-400">
+                                    Jumlah buku per kategori
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {categoryData.length > 0 ? (
+                                    <div className="h-80">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={categoryData}
+                                                    cx="50%"
+                                                    cy="50%"
+                                                    labelLine={false}
+                                                    label={({ name, percent }: { name: string; percent?: number }) => 
+                                                        `${name} ${percent ? (percent * 100).toFixed(0) : 0}%`
+                                                    }
+                                                    outerRadius={80}
+                                                    fill="#8884d8"
+                                                    dataKey="value"
+                                                    className="text-xs"
+                                                >
+                                                    {categoryData.map((entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                                    ))}
+                                                </Pie>
+                                                <Tooltip />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                ) : (
+                                    <div className="h-80 flex items-center justify-center text-gray-500 dark:text-gray-400">
+                                        <div className="text-center">
+                                            <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                            <p>Belum ada data kategori</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Revenue Bar Chart */}
+                        <Card className="bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 shadow-sm">
+                            <CardHeader className="pb-4">
+                                <CardTitle className="text-lg font-semibold text-gray-900 dark:text-white">
+                                    Pendapatan Harian
+                                </CardTitle>
+                                <CardDescription className="text-gray-500 dark:text-gray-400">
+                                    Pendapatan 7 hari terakhir
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {chartData.length > 0 ? (
+                                    <div className="h-80">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={chartData}>
+                                                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                                                <XAxis 
+                                                    dataKey="date" 
+                                                    className="text-xs"
+                                                    tick={{ fill: 'currentColor', fontSize: 12 }}
+                                                />
+                                                <YAxis 
+                                                    className="text-xs"
+                                                    tick={{ fill: 'currentColor', fontSize: 12 }}
+                                                    tickFormatter={(value) => `${value / 1000}K`}
+                                                />
+                                                <Tooltip content={<RevenueTooltip />} />
+                                                <Bar 
+                                                    dataKey="revenue" 
+                                                    fill="#06b6d4" 
+                                                    radius={[4, 4, 0, 0]}
+                                                    name="Pendapatan"
+                                                />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                ) : (
+                                    <div className="h-80 flex items-center justify-center text-gray-500 dark:text-gray-400">
+                                        <div className="text-center">
+                                            <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                            <p>Belum ada data pendapatan harian</p>
+                                        </div>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     </div>

@@ -58,4 +58,14 @@ class CategoryController extends Controller
             'category' => $category,
         ]);
     }
+
+    /**
+     * Get categories for navbar dropdown
+     */
+    public function getForNavbar()
+    {
+        $categories = Category::getForNavbar();
+
+        return response()->json($categories);
+    }
 }

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class Category extends Model
@@ -140,35 +141,14 @@ class Category extends Model
      */
     public static function getForNavbar()
     {
-        return cache()->remember('navbar_categories', 3600, function () {
+        return cache()->remember('navbar_categories', 7200, function () { // Increase cache to 2 hours
             try {
                 $categories = self::active()
                     ->withCount(['publishedBooks as books_count'])
                     ->orderBy('name')
                     ->get();
 
-                // Debug log
-                \Log::info('Category getForNavbar:', [
-                    'total_categories' => $categories->count(),
-                    'categories' => $categories->map(function ($cat) {
-                        return [
-                            'id' => $cat->id,
-                            'name' => $cat->name,
-                            'slug' => $cat->slug,
-                            'books_count' => $cat->books_count
-                        ];
-                    })->toArray()
-                ]);
-
                 $grouped = $categories->groupBy('slug');
-
-                \Log::info('Category grouped:', [
-                    'grouped_keys' => $grouped->keys()->toArray(),
-                    'eksakta_count' => $grouped->get('eksakta', collect())->count(),
-                    'soshum_count' => $grouped->get('soshum', collect())->count(),
-                    'terapan_count' => $grouped->get('terapan', collect())->count(),
-                    'interdisipliner_count' => $grouped->get('interdisipliner', collect())->count(),
-                ]);
 
                 // Convert to array structure for frontend
                 $result = [
@@ -178,17 +158,15 @@ class Category extends Model
                     'interdisipliner' => $grouped->get('interdisipliner', collect())->values()->toArray(),
                 ];
 
-                \Log::info('Category result structure:', [
-                    'eksakta' => count($result['eksakta']),
-                    'soshum' => count($result['soshum']),
-                    'terapan' => count($result['terapan']),
-                    'interdisipliner' => count($result['interdisipliner']),
-                ]);
-
                 return $result;
             } catch (\Exception $e) {
-                \Log::error('getForNavbar failed: ' . $e->getMessage());
-                return [];
+                Log::error('getForNavbar failed: ' . $e->getMessage());
+                return [
+                    'eksakta' => [],
+                    'soshum' => [],
+                    'terapan' => [],
+                    'interdisipliner' => [],
+                ];
             }
         });
     }

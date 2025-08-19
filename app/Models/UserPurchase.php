@@ -26,8 +26,8 @@ class UserPurchase extends Model
         'expires_at' => 'datetime',
     ];
 
-    // Disable updated_at timestamp
-    const UPDATED_AT = null;
+    // Disable timestamps
+    public $timestamps = false;
 
     public function user(): BelongsTo
     {
@@ -37,6 +37,27 @@ class UserPurchase extends Model
     public function transaction(): BelongsTo
     {
         return $this->belongsTo(Transaction::class);
+    }
+
+    public function book(): BelongsTo
+    {
+        return $this->belongsTo(Book::class, 'purchasable_id');
+    }
+
+    public function chapter(): BelongsTo
+    {
+        return $this->belongsTo(Chapter::class, 'purchasable_id');
+    }
+
+    public function purchasable()
+    {
+        if ($this->purchasable_type === 'book') {
+            return $this->belongsTo(Book::class, 'purchasable_id');
+        } elseif ($this->purchasable_type === 'chapter') {
+            return $this->belongsTo(Chapter::class, 'purchasable_id');
+        }
+
+        return null;
     }
 
     public function getPurchasableAttribute()

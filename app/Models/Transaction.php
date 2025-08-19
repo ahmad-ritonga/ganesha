@@ -63,6 +63,11 @@ class Transaction extends Model
         return $this->hasMany(UserPurchase::class);
     }
 
+    public function userPurchases(): HasMany
+    {
+        return $this->hasMany(UserPurchase::class);
+    }
+
     public function scopePending($query)
     {
         return $query->where('payment_status', 'pending');
@@ -188,15 +193,52 @@ class Transaction extends Model
     public function createUserPurchases()
     {
         foreach ($this->items as $item) {
-            UserPurchase::updateOrCreate([
-                'user_id' => $this->user_id,
-                'purchasable_type' => $item->item_type,
-                'purchasable_id' => $item->item_id,
-            ], [
-                'transaction_id' => $this->id,
-                'purchased_at' => $this->paid_at ?? Carbon::now(),
-            ]);
+            // Check if this is an author subscription
+            if ($item->item_type === 'author_subscription') {
+                $this->createAuthorSubscription($item);
+            } else {
+                // Regular book/chapter purchase
+                UserPurchase::updateOrCreate([
+                    'user_id' => $this->user_id,
+                    'purchasable_type' => $item->item_type,
+                    'purchasable_id' => $item->item_id,
+                ], [
+                    'transaction_id' => $this->id,
+                    'purchased_at' => $this->paid_at ?? Carbon::now(),
+                ]);
+            }
         }
+    }
+
+    protected function createAuthorSubscription($item)
+    {
+        $planId = $item->item_id; // For author subscription, item_id is the plan_id
+
+        $plan = \App\Models\AuthorSubscriptionPlan::find($planId);
+        if (!$plan) {
+            return;
+        }
+
+        // Check if user already has active subscription for this plan
+        $existingSubscription = \App\Models\UserAuthorSubscription::where('user_id', $this->user_id)
+            ->where('plan_id', $planId)
+            ->where('status', 'active')
+            ->first();
+
+        if ($existingSubscription) {
+            return; // User already has active subscription
+        }
+
+        // Create author subscription
+        \App\Models\UserAuthorSubscription::create([
+            'user_id' => $this->user_id,
+            'plan_id' => $plan->id,
+            'transaction_id' => $this->id,
+            'submissions_used' => 0,
+            'starts_at' => Carbon::now(),
+            'expires_at' => Carbon::now()->addMonth(), // 1 month subscription
+            'status' => 'active',
+        ]);
     }
 
     public function addItem($itemType, $itemId, $itemTitle, $price, $quantity = 1)
@@ -265,18 +307,22 @@ class Transaction extends Model
 
     public function getMidtransPayload()
     {
+        $customerDetails = [
+            'first_name' => $this->user->name,
+            'email' => $this->user->email,
+        ];
+
+        // Add phone only if it exists
+        if ($this->user->phone) {
+            $customerDetails['phone'] = $this->user->phone;
+        }
+
         return [
             'transaction_details' => [
                 'order_id' => $this->midtrans_order_id ?: $this->transaction_code,
                 'gross_amount' => (int) $this->total_amount,
             ],
-            'payment_type' => 'qris',
-            'enabled_payments' => ['qris'],
-            'customer_details' => [
-                'first_name' => $this->user->name,
-                'email' => $this->user->email,
-                'phone' => $this->user->phone,
-            ],
+            'customer_details' => $customerDetails,
             'item_details' => $this->items->map(function ($item) {
                 return [
                     'id' => $item->item_id,
@@ -289,6 +335,22 @@ class Transaction extends Model
             'custom_expiry' => [
                 'expiry_duration' => 15,
                 'unit' => 'minute',
+            ],
+            'enabled_payments' => [
+                'qris',
+                'gopay',
+                'shopeepay',
+                'other_qris',
+                'credit_card',
+                'bca_va',
+                'bni_va',
+                'bri_va',
+                'mandiri_va',
+                'permata_va',
+                'other_va',
+                'indomaret',
+                'alfamart',
+                'akulaku'
             ],
         ];
     }

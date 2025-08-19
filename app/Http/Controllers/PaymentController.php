@@ -20,6 +20,32 @@ class PaymentController extends Controller
         $this->midtransService = $midtransService;
     }
 
+    public function showBookPayment(Request $request, $bookId)
+    {
+        try {
+            $book = Book::with('author')->findOrFail($bookId);
+            $user = Auth::user();
+
+            // Check if already purchased
+            if ($user->hasPurchasedBook($book->id)) {
+                return redirect()->route('books.show', $book->slug)
+                    ->with('error', 'Anda sudah memiliki buku ini.');
+            }
+
+            return Inertia::render('payment/book', [
+                'book' => $book,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Show book payment failed', [
+                'book_id' => $bookId,
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
     public function purchaseBook(Request $request, $bookId)
     {
         try {
@@ -46,6 +72,45 @@ class PaymentController extends Controller
         } catch (\Exception $e) {
             Log::error('Book purchase failed', [
                 'book_id' => $bookId,
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function showChapterPayment(Request $request, $chapterId)
+    {
+        try {
+            $chapter = Chapter::with(['book.author'])->findOrFail($chapterId);
+            $user = Auth::user();
+
+            // Check if chapter is free
+            if ($chapter->is_free) {
+                return redirect()->route('books.read-chapter', [$chapter->book->slug, $chapter->slug])
+                    ->with('info', 'Chapter ini gratis, Anda bisa langsung membacanya.');
+            }
+
+            // Check if already purchased
+            if ($user->hasPurchasedChapter($chapter->id)) {
+                return redirect()->route('books.read-chapter', [$chapter->book->slug, $chapter->slug])
+                    ->with('info', 'Anda sudah memiliki chapter ini.');
+            }
+
+            // Check if already has book access
+            if ($user->hasPurchasedBook($chapter->book_id)) {
+                return redirect()->route('books.read-chapter', [$chapter->book->slug, $chapter->slug])
+                    ->with('info', 'Anda sudah memiliki akses melalui pembelian buku.');
+            }
+
+            return Inertia::render('payment/chapter', [
+                'chapter' => $chapter,
+                'book' => $chapter->book,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Show chapter payment failed', [
+                'chapter_id' => $chapterId,
                 'user_id' => Auth::id(),
                 'error' => $e->getMessage()
             ]);

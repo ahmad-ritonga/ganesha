@@ -107,11 +107,12 @@ interface BookShowProps {
     book: Book;
     relatedBooks?: Book[];
     userHasPurchased?: boolean;
+    userPurchasedChapters?: string[]; // Array of chapter IDs that user has purchased
     [key: string]: any;
 }
 
 export default function BookShow() {
-    const { book, relatedBooks = [], auth, userHasPurchased = false } = usePage<BookShowProps>().props;
+    const { book, relatedBooks = [], auth, userHasPurchased = false, userPurchasedChapters = [] } = usePage<BookShowProps>().props;
     const [activeTab, setActiveTab] = useState<'overview' | 'chapters' | 'reviews'>('overview');
     const [expandedChapters, setExpandedChapters] = useState<Record<string, boolean>>({});
     const [isPurchasing, setIsPurchasing] = useState(false);
@@ -282,7 +283,7 @@ export default function BookShow() {
     };
 
     const canReadChapter = (chapter: any) => {
-        return chapter.is_free || userHasPurchased;
+        return chapter.is_free || userHasPurchased || userPurchasedChapters.includes(chapter.id);
     };
 
     const formatLanguage = (languageCode: string) => {
@@ -627,6 +628,14 @@ export default function BookShow() {
                                                                                 <span className="text-green-600 font-semibold bg-green-100 px-2 py-1 rounded-full text-xs">
                                                                                     Gratis
                                                                                 </span>
+                                                                            ) : userHasPurchased ? (
+                                                                                <span className="text-emerald-600 font-semibold bg-emerald-100 px-2 py-1 rounded-full text-xs">
+                                                                                    Terbuka (Buku Dibeli)
+                                                                                </span>
+                                                                            ) : userPurchasedChapters.includes(chapter.id) ? (
+                                                                                <span className="text-emerald-600 font-semibold bg-emerald-100 px-2 py-1 rounded-full text-xs">
+                                                                                    Terbuka (Chapter Dibeli)
+                                                                                </span>
                                                                             ) : (
                                                                                 <span className="text-amber-600 font-semibold bg-amber-100 px-2 py-1 rounded-full text-xs">
                                                                                     Premium - {new Intl.NumberFormat('id-ID', {
@@ -666,14 +675,16 @@ export default function BookShow() {
                                                                             </Link>
                                                                         ) : (
                                                                             <div className="flex items-center gap-2">
-                                                                                <button
-                                                                                    onClick={() => handlePurchaseChapter(chapter.id)}
-                                                                                    disabled={isPurchasing}
-                                                                                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-100 p-2 rounded-lg transition-all duration-200 disabled:opacity-50"
-                                                                                    title="Beli chapter ini"
-                                                                                >
-                                                                                    <ShoppingCart className="w-4 h-4" />
-                                                                                </button>
+                                                                                {!userHasPurchased && !userPurchasedChapters.includes(chapter.id) && (
+                                                                                    <button
+                                                                                        onClick={() => handlePurchaseChapter(chapter.id)}
+                                                                                        disabled={isPurchasing}
+                                                                                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-100 p-2 rounded-lg transition-all duration-200 disabled:opacity-50"
+                                                                                        title="Beli chapter ini"
+                                                                                    >
+                                                                                        <ShoppingCart className="w-4 h-4" />
+                                                                                    </button>
+                                                                                )}
                                                                                 <Lock className="w-5 h-5 text-gray-400" />
                                                                             </div>
                                                                         )
@@ -756,7 +767,12 @@ export default function BookShow() {
                                                                                         <p className="text-sm text-gray-500 mt-1">
                                                                                             {chapter.is_free 
                                                                                                 ? "Beli buku untuk mengakses konten"
-                                                                                                : `Beli chapter ini seharga Rp ${chapter.price?.toLocaleString('id-ID')} atau beli buku lengkap`
+                                                                                                : `Beli chapter ini seharga ${new Intl.NumberFormat('id-ID', {
+                                                                                                    style: 'currency',
+                                                                                                    currency: 'IDR',
+                                                                                                    minimumFractionDigits: 0,
+                                                                                                    maximumFractionDigits: 0,
+                                                                                                }).format(chapter.price || 0)} atau beli buku lengkap untuk akses semua chapter`
                                                                                             }
                                                                                         </p>
                                                                                     </div>
