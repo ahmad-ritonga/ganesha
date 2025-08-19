@@ -42,7 +42,10 @@ export default function Pricing({ auth, plans }: Props) {
     const { post, processing } = useForm();
 
     const handleSubscribe = (plan: AuthorSubscriptionPlan) => {
-        if (processing) return;
+        if (processing) {
+            console.log('Already processing, ignoring click');
+            return;
+        }
         
         console.log('Subscribing to plan:', plan);
         

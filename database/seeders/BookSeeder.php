@@ -30,7 +30,7 @@ class BookSeeder extends Seeder
             [
                 'title' => 'Matematika Dasar untuk Pemula',
                 'description' => 'Buku panduan lengkap untuk memahami konsep-konsep dasar matematika. Cocok untuk siswa SMA dan mahasiswa tingkat awal yang ingin memperkuat fondasi matematika mereka.',
-                'cover_image' => 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=400&h=600&fit=crop&auto=format',
+                'cover_image' => 'https://i.pinimg.com/736x/6f/d5/5b/6fd55ba2830542dae6472509ba0877c3.jpg',
                 'author_id' => $users->where('email', 'admin@example.com')->first()?->id ?? $users->first()->id,
                 'category_id' => $categories->where('name', 'Matematika')->first()?->id ?? $categories->first()->id,
                 'isbn' => '978-602-1234-56-7',
@@ -47,7 +47,7 @@ class BookSeeder extends Seeder
             [
                 'title' => 'Fisika Modern dan Aplikasinya',
                 'description' => 'Eksplorasi mendalam tentang fisika modern meliputi mekanika kuantum, relativitas, dan aplikasinya dalam teknologi masa kini. Dilengkapi dengan contoh-contoh praktis dan eksperimen.',
-                'cover_image' => 'https://images.unsplash.com/photo-1636466497217-26a8cbeaf0aa?w=400&h=600&fit=crop&auto=format',
+                'cover_image' => 'https://i.pinimg.com/1200x/e2/9a/af/e29aaf80dbcc410ba1cf12274c77b594.jpg',
                 'author_id' => $users->random()->id,
                 'category_id' => $categories->where('name', 'Fisika')->first()?->id ?? $categories->first()->id,
                 'isbn' => '978-602-1234-57-8',
@@ -64,7 +64,7 @@ class BookSeeder extends Seeder
             [
                 'title' => 'Kimia Organik Terapan',
                 'description' => 'Panduan komprehensif kimia organik dengan fokus pada aplikasi praktis dalam industri farmasi, makanan, dan material. Berisi studi kasus dan praktikum virtual.',
-                'cover_image' => 'https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?w=400&h=600&fit=crop&auto=format',
+                'cover_image' => 'https://i.pinimg.com/736x/5a/f9/0d/5af90dc82af9aebf469ce345a4646dd0.jpg',
                 'author_id' => $users->random()->id,
                 'category_id' => $categories->where('name', 'Kimia')->first()?->id ?? $categories->first()->id,
                 'isbn' => '978-602-1234-58-9',
@@ -80,7 +80,7 @@ class BookSeeder extends Seeder
             [
                 'title' => 'Psikologi Kepribadian Kontemporer',
                 'description' => 'Analisis mendalam tentang teori-teori kepribadian modern, assessment psikologis, dan aplikasinya dalam kehidupan sehari-hari. Cocok untuk mahasiswa psikologi dan praktisi.',
-                'cover_image' => 'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=400&h=600&fit=crop&auto=format',
+                'cover_image' => 'https://i.pinimg.com/1200x/c0/6f/64/c06f645aaaebbe1e102718c7a2920424.jpg',
                 'author_id' => $users->random()->id,
                 'category_id' => $categories->where('name', 'Psikologi')->first()?->id ?? $categories->first()->id,
                 'isbn' => '978-602-1234-59-0',
@@ -97,7 +97,7 @@ class BookSeeder extends Seeder
             [
                 'title' => 'Sosiologi Digital Era 4.0',
                 'description' => 'Kajian sosiologi dalam era digital yang membahas dampak teknologi terhadap masyarakat, perubahan sosial, dan transformasi digital dalam berbagai aspek kehidupan.',
-                'cover_image' => 'https://images.unsplash.com/photo-1432821596592-e2c18b78144f?w=400&h=600&fit=crop&auto=format',
+                'cover_image' => 'https://i.pinimg.com/736x/a8/7b/bd/a87bbd817ea422c315a8885d067d0861.jpg',
                 'author_id' => $users->random()->id,
                 'category_id' => $categories->where('name', 'Sosiologi')->first()?->id ?? $categories->first()->id,
                 'isbn' => '978-602-1234-60-6',
@@ -113,7 +113,7 @@ class BookSeeder extends Seeder
             [
                 'title' => 'Manajemen Strategis Modern',
                 'description' => 'Konsep dan praktik manajemen strategis dalam era bisnis modern. Membahas perencanaan strategis, implementasi, evaluasi, dan adaptasi dalam lingkungan bisnis yang dinamis.',
-                'cover_image' => 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop&auto=format',
+                'cover_image' => 'https://i.pinimg.com/1200x/90/79/8f/90798f1c0b3f2d836954a8f5922c62b0.jpg',
                 'author_id' => $users->random()->id,
                 'category_id' => $categories->where('name', 'Ekonomi')->first()?->id ?? $categories->first()->id,
                 'isbn' => '978-602-1234-61-7',
@@ -130,7 +130,7 @@ class BookSeeder extends Seeder
             [
                 'title' => 'Teknik Informatika Fundamental',
                 'description' => 'Dasar-dasar teknik informatika meliputi algoritma, struktur data, pemrograman, dan sistem komputer. Ideal untuk mahasiswa baru dan yang ingin memahami fondasi IT.',
-                'cover_image' => 'https://images.unsplash.com/photo-1580894894513-541e068a3e2b?w=400&h=600&fit=crop&auto=format',
+                'cover_image' => 'https://i.pinimg.com/736x/00/7f/72/007f72888ea21d93569f12af3018f272.jpg',
                 'author_id' => $users->random()->id,
                 'category_id' => $categories->where('name', 'Teknik Informatika')->first()?->id ?? $categories->first()->id,
                 'isbn' => '978-602-1234-62-8',
@@ -146,7 +146,7 @@ class BookSeeder extends Seeder
             [
                 'title' => 'Rekayasa Perangkat Lunak Agile',
                 'description' => 'Metodologi pengembangan perangkat lunak dengan pendekatan Agile. Membahas Scrum, Kanban, DevOps, dan best practices dalam software development modern.',
-                'cover_image' => 'https://images.unsplash.com/photo-1551650975-87deedd944c3?w=400&h=600&fit=crop&auto=format',
+                'cover_image' => 'https://i.pinimg.com/1200x/88/75/f4/8875f427e39c993f0e18d163f639b85e.jpg',
                 'author_id' => $users->random()->id,
                 'category_id' => $categories->where('name', 'Teknik Informatika')->first()?->id ?? $categories->first()->id,
                 'isbn' => '978-602-1234-63-9',

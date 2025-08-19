@@ -194,9 +194,9 @@ export default function Welcome() {
                                 variants={fadeInUp}
                             >
                                 {[
-                                    { icon: IconBook, value: '1000+', label: 'Buku Diterbitkan' },
+                                    // { icon: IconBook, value: '1000+', label: 'Buku Diterbitkan' },
                                     { icon: IconUsers, value: '500+', label: 'Peneliti Bergabung' },
-                                    { icon: IconAward, value: '50+', label: 'Universitas Partner' }
+                                    { icon: IconAward, value: '10+', label: 'Universitas Partner' }
                                 ].map((stat, index) => (
                                     <div key={index} className="text-center lg:text-left">
                                         <div className="flex items-center justify-center lg:justify-start mb-2">

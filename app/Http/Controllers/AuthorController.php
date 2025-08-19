@@ -131,6 +131,13 @@ class AuthorController extends Controller
      */
     public function subscribe(Request $request, AuthorSubscriptionPlan $plan)
     {
+        Log::info('Subscribe method called', [
+            'method' => $request->method(),
+            'user_id' => Auth::id(),
+            'plan_id' => $plan->id,
+            'plan_name' => $plan->name
+        ]);
+
         $user = Auth::user();
 
         if ($user->hasActiveAuthorSubscription()) {

@@ -14,8 +14,8 @@ export default function PublicLayout({ children, title = 'Ganesha Science Instit
   const [showOptions, setShowOptions] = useState(false);
 
   const whatsappContacts = [
-    { label: 'Admin', number: '+6285731039058' },
-    { label: 'Manager', number: '+6285853754933' }
+    { label: 'Admin', number: '+6285853754933' },
+    { label: 'Admin 2', number: '+6285731039058' }
   ];
 
   const handleWhatsAppClick = (number: string) => {
