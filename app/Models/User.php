@@ -555,7 +555,8 @@ class User extends Authenticatable
 
     public function activeAuthorSubscription()
     {
-        return $this->authorSubscriptions()->active()->first();
+        // Return the most recent active subscription
+        return $this->authorSubscriptions()->active()->latest()->first();
     }
 
     public function hasActiveAuthorSubscription(): bool
@@ -565,13 +566,48 @@ class User extends Authenticatable
 
     public function canSubmitBooks(): bool
     {
-        $subscription = $this->activeAuthorSubscription();
-        return $subscription && $subscription->canSubmitMoreBooks();
+        // Check if user has any active subscription with available submissions
+        $activeSubscriptions = $this->authorSubscriptions()->active()->get();
+
+        foreach ($activeSubscriptions as $subscription) {
+            if ($subscription->canSubmitMoreBooks()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function getTotalAvailableSubmissions(): int
+    {
+        // Calculate total available submissions across all active subscriptions
+        return $this->authorSubscriptions()
+            ->active()
+            ->get()
+            ->sum(function ($subscription) {
+                return max(0, $subscription->plan->max_submissions - $subscription->submissions_used);
+            });
+    }
+
+    public function incrementSubmissionsUsed(): void
+    {
+        // Find the first active subscription that has available submissions
+        $subscription = $this->authorSubscriptions()
+            ->active()
+            ->get()
+            ->first(function ($sub) {
+                return $sub->canSubmitMoreBooks();
+            });
+
+        if ($subscription) {
+            $subscription->incrementSubmissionsUsed();
+        }
     }
 
     public function getAuthorStats()
     {
         $submissions = $this->authorSubmissions();
+        $totalAvailableSubmissions = $this->getTotalAvailableSubmissions();
 
         return [
             'total_submissions' => $submissions->count(),
@@ -581,6 +617,8 @@ class User extends Authenticatable
             'rejected_submissions' => $submissions->where('status', 'rejected')->count(),
             'has_active_subscription' => $this->hasActiveAuthorSubscription(),
             'can_submit_books' => $this->canSubmitBooks(),
+            'total_available_submissions' => $totalAvailableSubmissions,
+            'active_subscriptions_count' => $this->authorSubscriptions()->active()->count(),
         ];
     }
 }

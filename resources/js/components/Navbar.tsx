@@ -141,11 +141,11 @@ export default function GaneshaNavbar({ className }: GaneshaNavbarProps) {
       link: "/transactions",
       icon: ShoppingCart,
     },
-    {
-      name: "Riwayat Baca",
-      link: "/reading-history",
-      icon: History,
-    },
+    // {
+    //   name: "Riwayat Baca",
+    //   link: "/reading-history",
+    //   icon: History,
+    // },
     // Add Author Dashboard if user has active author subscription
     ...(auth?.user?.has_active_author_subscription ? [{
       name: "Dashboard Penulis",

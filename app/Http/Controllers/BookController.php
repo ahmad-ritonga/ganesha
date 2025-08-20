@@ -86,6 +86,21 @@ class BookController extends Controller
 
         $books = $query->paginate(12)->withQueryString();
 
+        // Transform cover_image to full URL
+        $books->getCollection()->transform(function ($book) {
+            if ($book->cover_image) {
+                // Check if cover_image is already a full URL (external)
+                if (filter_var($book->cover_image, FILTER_VALIDATE_URL)) {
+                    // Keep external URL as is
+                    $book->cover_image = $book->cover_image;
+                } else {
+                    // Convert local path to full URL
+                    $book->cover_image = asset('storage/' . $book->cover_image);
+                }
+            }
+            return $book;
+        });
+
         // Get categories for filters
         $categories = Category::where('is_active', true)
             ->withCount(['books' => function ($query) {
@@ -133,6 +148,28 @@ class BookController extends Controller
             ->orderByDesc('created_at')
             ->limit(8)
             ->get();
+
+        // Transform cover_image for book and related books
+        if ($book->cover_image) {
+            if (filter_var($book->cover_image, FILTER_VALIDATE_URL)) {
+                // Keep external URL as is
+                $book->cover_image = $book->cover_image;
+            } else {
+                // Convert local path to full URL
+                $book->cover_image = asset('storage/' . $book->cover_image);
+            }
+        }
+
+        $relatedBooks->transform(function ($relatedBook) {
+            if ($relatedBook->cover_image) {
+                if (filter_var($relatedBook->cover_image, FILTER_VALIDATE_URL)) {
+                    $relatedBook->cover_image = $relatedBook->cover_image;
+                } else {
+                    $relatedBook->cover_image = asset('storage/' . $relatedBook->cover_image);
+                }
+            }
+            return $relatedBook;
+        });
 
         return Inertia::render('books/show', [
             'book' => $book,

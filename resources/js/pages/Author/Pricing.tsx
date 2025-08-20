@@ -139,10 +139,16 @@ export default function Pricing({ auth, plans }: Props) {
                                 Penerbitan
                             </span>{' '}Terbaik
                         </h1>
-                        <p className="text-lg sm:text-xl text-gray-600 max-w-3xl mx-auto">
+                        <p className="text-lg sm:text-xl text-gray-600 max-w-3xl mx-auto mb-4">
                             Dapatkan layanan penerbitan berkualitas dengan harga yang kompetitif 
                             dan fleksibilitas sesuai kebutuhan penerbitan Anda.
                         </p>
+                        <div className="flex items-center justify-center gap-2 bg-gradient-to-r from-green-100 to-green-50 border border-green-200 rounded-xl p-4 max-w-2xl mx-auto">
+                            <Gift className="w-5 h-5 text-green-600" />
+                            <p className="text-green-800 font-medium">
+                                Anda bisa berlangganan berkali-kali untuk menambah kuota submission!
+                            </p>
+                        </div>
                     </div>
 
                     {/* Pricing Cards */}

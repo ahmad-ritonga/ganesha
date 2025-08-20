@@ -33,6 +33,7 @@ interface Transaction {
     total_amount: number;
     payment_status: string;
     created_at: string;
+    expired_at?: string;
     items: TransactionItem[];
 }
 
@@ -174,6 +175,17 @@ export default function TransactionsIndex({ transactions, filters, auth }: Trans
 
     const retryPayment = (transactionId: string) => {
         router.post(route('transactions.retry', transactionId));
+    };
+
+    const continuePayment = (transactionId: string) => {
+        router.get(route('payment.continue', transactionId));
+    };
+
+    const isTransactionExpired = (transaction: Transaction) => {
+        if (!transaction.expired_at) return false;
+        const expiredAt = new Date(transaction.expired_at);
+        const now = new Date();
+        return expiredAt.getTime() <= now.getTime();
     };
 
     return (
@@ -441,6 +453,16 @@ export default function TransactionsIndex({ transactions, filters, auth }: Trans
                                                     <Eye className="w-4 h-4" />
                                                     Detail
                                                 </Link>
+                                                
+                                                {transaction.payment_status === 'pending' && !isTransactionExpired(transaction) && (
+                                                    <button
+                                                        onClick={() => continuePayment(transaction.id)}
+                                                        className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                                                    >
+                                                        <CreditCard className="w-4 h-4" />
+                                                        Lanjut Bayar
+                                                    </button>
+                                                )}
                                                 
                                                 {transaction.payment_status === 'failed' && (
                                                     <button

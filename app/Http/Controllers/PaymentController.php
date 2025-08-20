@@ -273,4 +273,59 @@ class PaymentController extends Controller
             return back()->with('error', 'Gagal membatalkan pembayaran.');
         }
     }
+
+    public function continuePayment(Request $request, $transactionId)
+    {
+        try {
+            $transaction = Transaction::with(['items', 'user'])
+                ->where('id', $transactionId)
+                ->where('user_id', Auth::id())
+                ->firstOrFail();
+
+            // Check if transaction can still be paid
+            if (!$transaction->canBePaid()) {
+                if ($transaction->isExpired()) {
+                    return redirect()->route('payment.failed', $transaction->id)
+                        ->with('error', 'Transaksi sudah kadaluarsa. Silakan buat transaksi baru.');
+                } else if ($transaction->isPaid()) {
+                    return redirect()->route('payment.success', $transaction->id)
+                        ->with('message', 'Transaksi sudah berhasil dibayar.');
+                } else {
+                    return redirect()->route('payment.failed', $transaction->id)
+                        ->with('error', 'Transaksi tidak dapat dilanjutkan.');
+                }
+            }
+
+            // Create new Snap token if needed
+            $snapToken = $this->midtransService->createSnapToken($transaction);
+
+            // Get related book/chapter for display
+            $firstItem = $transaction->items->first();
+            $book = null;
+            $chapter = null;
+
+            if ($firstItem && $firstItem->item_type === 'App\Models\Book') {
+                $book = Book::find($firstItem->item_id);
+            } elseif ($firstItem && $firstItem->item_type === 'App\Models\Chapter') {
+                $chapter = Chapter::with(['book'])->find($firstItem->item_id);
+                $book = $chapter->book ?? null;
+            }
+
+            return Inertia::render('payment/checkout', [
+                'transaction' => $transaction,
+                'book' => $book,
+                'chapter' => $chapter,
+                'snapToken' => $snapToken,
+                'clientKey' => config('services.midtrans.client_key'),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Continue payment failed', [
+                'transaction_id' => $transactionId,
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return back()->with('error', 'Gagal melanjutkan pembayaran: ' . $e->getMessage());
+        }
+    }
 }

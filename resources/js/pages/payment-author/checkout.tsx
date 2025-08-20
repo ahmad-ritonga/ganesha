@@ -127,7 +127,8 @@ export default function Checkout({ snapToken, transaction, items, redirectUrl }:
         >
             <Head title="Author Subscription Payment" />
 
-            <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12">
+            {/* Added pt-20 to provide space for navbar */}
+            <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 pt-20 pb-12">
                 <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
                     {/* Header */}
                     <div className="text-center mb-8">
@@ -155,7 +156,7 @@ export default function Checkout({ snapToken, transaction, items, redirectUrl }:
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {/* Order Summary */}
                         <div className="lg:col-span-1">
-                            <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 sticky top-8">
+                            <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 sticky top-24">
                                 <div className="flex items-center mb-4">
                                     <Package className="w-6 h-6 text-blue-600 mr-2" />
                                     <h2 className="text-xl font-bold text-gray-900">Order Summary</h2>

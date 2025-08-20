@@ -100,6 +100,7 @@ Route::middleware(['auth', 'verified', 'role:user'])->group(function () {
         Route::post('book/{book}', [PaymentController::class, 'purchaseBook'])->name('book');
         Route::get('chapter/{chapter}', [PaymentController::class, 'showChapterPayment'])->name('chapter.show');
         Route::post('chapter/{chapter}', [PaymentController::class, 'purchaseChapter'])->name('chapter');
+        Route::get('continue/{transaction}', [PaymentController::class, 'continuePayment'])->name('continue');
         Route::get('success/{transaction}', [PaymentController::class, 'success'])->name('success');
         Route::get('failed/{transaction}', [PaymentController::class, 'failed'])->name('failed');
         Route::get('pending/{transaction}', [PaymentController::class, 'pending'])->name('pending');

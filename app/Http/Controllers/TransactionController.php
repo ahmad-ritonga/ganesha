@@ -16,6 +16,7 @@ class TransactionController extends Controller
         $this->autoSyncPendingTransactions();
 
         $query = Transaction::with(['items'])
+            ->select(['id', 'transaction_code', 'type', 'total_amount', 'payment_status', 'created_at', 'expired_at', 'user_id'])
             ->where('user_id', Auth::id());
 
         if ($request->has('status')) {

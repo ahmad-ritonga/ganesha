@@ -144,6 +144,11 @@ class Book extends Model
     public function getCoverImageUrlAttribute()
     {
         if ($this->cover_image) {
+            // Check if cover_image is already a full URL (external)
+            if (filter_var($this->cover_image, FILTER_VALIDATE_URL)) {
+                return $this->cover_image;
+            }
+            // If it's a local path, use asset with storage
             return asset('storage/' . $this->cover_image);
         }
         return asset('assets/images/default-book-cover.png');

@@ -49,6 +49,21 @@ class BookController extends Controller
             ->paginate(12)
             ->withQueryString();
 
+        // Transform cover_image to full URL for admin interface
+        $books->getCollection()->transform(function ($book) {
+            if ($book->cover_image) {
+                // Check if cover_image is already a full URL (external)
+                if (filter_var($book->cover_image, FILTER_VALIDATE_URL)) {
+                    // Keep external URL as is
+                    $book->cover_image = $book->cover_image;
+                } else {
+                    // Convert local path to full URL
+                    $book->cover_image = asset('storage/' . $book->cover_image);
+                }
+            }
+            return $book;
+        });
+
         $categories = Category::active()->get();
 
         return Inertia::render('admin/books/index', [
@@ -114,6 +129,15 @@ class BookController extends Controller
     {
         $book = Book::with(['author', 'category'])->findOrFail($id);
 
+        // Transform cover_image to full URL
+        if ($book->cover_image) {
+            if (filter_var($book->cover_image, FILTER_VALIDATE_URL)) {
+                $book->cover_image = $book->cover_image;
+            } else {
+                $book->cover_image = asset('storage/' . $book->cover_image);
+            }
+        }
+
         return Inertia::render('admin/books/show', [
             'book' => $book,
         ]);
@@ -124,6 +148,15 @@ class BookController extends Controller
         $book = Book::findOrFail($id);
         $categories = Category::active()->get();
         $authors = User::all();
+
+        // Transform cover_image to full URL
+        if ($book->cover_image) {
+            if (filter_var($book->cover_image, FILTER_VALIDATE_URL)) {
+                $book->cover_image = $book->cover_image;
+            } else {
+                $book->cover_image = asset('storage/' . $book->cover_image);
+            }
+        }
 
         return Inertia::render('admin/books/edit', [
             'book' => $book,

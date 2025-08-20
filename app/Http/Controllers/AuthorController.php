@@ -62,14 +62,17 @@ class AuthorController extends Controller
     {
         $user = Auth::user();
 
+        // Allow submission even without active subscription for flexibility
+        // but show a warning if no subscription exists
         if (!$user->hasActiveAuthorSubscription()) {
+            // Still redirect to pricing but with a different message
             return redirect()->route('author.pricing')
-                ->with('error', 'Anda perlu berlangganan paket author terlebih dahulu.');
+                ->with('info', 'Berlangganan paket author untuk mulai submit buku Anda.');
         }
 
         if (!$user->canSubmitBooks()) {
-            return redirect()->route('author.dashboard')
-                ->with('error', 'Anda telah mencapai batas maksimal submission untuk bulan ini.');
+            return redirect()->route('author.pricing')
+                ->with('info', 'Anda telah mencapai batas submission. Berlangganan lagi untuk menambah kuota submission.');
         }
 
         // Get categories for the dropdown
@@ -77,7 +80,7 @@ class AuthorController extends Controller
 
         return Inertia::render('Author/Submit', [
             'categories' => $categories,
-            'subscription' => $user->activeAuthorSubscription()->load('plan'),
+            'subscription' => $user->activeAuthorSubscription()?->load('plan'),
         ]);
     }
 
@@ -119,8 +122,8 @@ class AuthorController extends Controller
             'submitted_at' => now(),
         ]);
 
-        // Increment submissions used
-        $user->activeAuthorSubscription()->incrementSubmissionsUsed();
+        // Increment submissions used from available subscriptions
+        $user->incrementSubmissionsUsed();
 
         return redirect()->route('author.dashboard')
             ->with('success', 'Submission berhasil dikirim! Tim kami akan melakukan review dalam 1-7 hari kerja.');
@@ -140,9 +143,13 @@ class AuthorController extends Controller
 
         $user = Auth::user();
 
-        if ($user->hasActiveAuthorSubscription()) {
-            return back()->withErrors(['error' => 'Anda sudah memiliki subscription yang aktif.']);
-        }
+        // Allow multiple subscriptions - remove the restriction
+        // Users can now subscribe to multiple plans or extend their submissions quota
+        Log::info('User subscription status', [
+            'user_id' => $user->id,
+            'has_active_subscription' => $user->hasActiveAuthorSubscription(),
+            'allowing_multiple_subscriptions' => true
+        ]);
 
         try {
             // Create transaction record first
@@ -177,6 +184,11 @@ class AuthorController extends Controller
                 'redirectUrl' => route('author.dashboard'),
             ]);
         } catch (\Exception $e) {
+            Log::error('Subscription creation failed', [
+                'user_id' => $user->id,
+                'plan_id' => $plan->id,
+                'error' => $e->getMessage()
+            ]);
             return back()->withErrors(['error' => 'Gagal membuat pembayaran: ' . $e->getMessage()]);
         }
     }
