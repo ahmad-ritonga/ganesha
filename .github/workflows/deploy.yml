@@ -1,4 +1,4 @@
-name: Deploy Ganesha to Hostinger
+name: Deploy Ganesha (Lean + Fast)
 
 on:
   push:
@@ -13,111 +13,51 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.2'
-          extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, pdo_mysql, zip
-          coverage: none
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
 
-      - name: Create production .env file (Simple approach)
+      - name: Create production .env file
         run: |
-          # Copy .env.example first
           cp .env.example .env
-
-          # Replace values using simple sed commands (one by one)
           sed -i 's/APP_ENV=local/APP_ENV=production/' .env
           sed -i 's/APP_DEBUG=true/APP_DEBUG=false/' .env
           sed -i 's|APP_URL=http://localhost:8000|APP_URL=https://ganeshainstitute.org|' .env
-
-          # Database settings
           sed -i 's/DB_HOST=127.0.0.1/DB_HOST=localhost/' .env
           sed -i 's/DB_DATABASE=ganesha/DB_DATABASE=u476015804_ganesha/' .env
           sed -i 's/DB_USERNAME=root/DB_USERNAME=u476015804_ganesha/' .env
-          sed -i 's/DB_PASSWORD=/DB_PASSWORD=or:d>E3o|/' .env
-
-          # Change session/cache to file-based
+          sed -i 's|DB_PASSWORD=|DB_PASSWORD='"'"'or:d>E3o|'"'"'|' .env
           sed -i 's/SESSION_DRIVER=database/SESSION_DRIVER=file/' .env
           sed -i 's/QUEUE_CONNECTION=database/QUEUE_CONNECTION=sync/' .env
           sed -i 's/CACHE_STORE=database/CACHE_STORE=file/' .env
+          sed -i 's|APP_KEY=|APP_KEY=${{ secrets.APP_KEY }}|' .env
 
-          # Update mail settings
-          sed -i 's/MAIL_USERNAME=ahmad.ritonga@mhs.unsoed.ac.id/MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}/' .env
-          sed -i 's/MAIL_PASSWORD="rgkx hzfu xxvt qugs"/MAIL_PASSWORD="${{ secrets.MAIL_PASSWORD }}"/' .env
-
-          # Add APP_KEY from secrets
-          sed -i 's/APP_KEY=/APP_KEY=${{ secrets.APP_KEY }}/' .env
-
-      - name: Debug - Show .env content
+      - name: Install NPM and build assets
         run: |
-          echo "=== .env file content ==="
-          cat .env
-          echo "=== End of .env ==="
+          npm ci
+          npm run build
 
-          echo "=== Check for problematic characters ==="
-          hexdump -C .env | head -20
-
-          echo "=== Line count and file size ==="
-          wc -l .env
-          ls -la .env
-
-      - name: Install Composer dependencies
-        run: composer install --optimize-autoloader --no-dev --no-interaction --prefer-dist
-
-      - name: Test Laravel env parsing (After composer install)
+      - name: Prepare lean deployment (Source code only)
         run: |
-          php -r "
-          require 'vendor/autoload.php';
-          try {
-              \$dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
-              \$dotenv->load();
-              echo 'ENV file parsed successfully!' . PHP_EOL;
-              echo 'APP_NAME: ' . (\$_ENV['APP_NAME'] ?? 'not set') . PHP_EOL;
-              echo 'APP_ENV: ' . (\$_ENV['APP_ENV'] ?? 'not set') . PHP_EOL;
-          } catch (Exception \$e) {
-              echo 'Error parsing .env: ' . \$e->getMessage() . PHP_EOL;
-              exit(1);
-          }
-          "
+          mkdir -p deployment
 
-      - name: Install NPM dependencies
-        run: npm ci
-
-      - name: Build assets with Vite
-        run: npm run build
-
-      - name: Prepare deployment for shared hosting
-        run: |
-          # Create deployment structure
-          mkdir -p deployment/laravel
-
-          # Move Laravel core files to laravel subfolder
-          cp -r app deployment/laravel/
-          cp -r bootstrap deployment/laravel/
-          cp -r config deployment/laravel/
-          cp -r database deployment/laravel/
-          cp -r resources deployment/laravel/
-          cp -r routes deployment/laravel/
-          cp -r storage deployment/laravel/
-          cp -r vendor deployment/laravel/
-          cp .env deployment/laravel/
-          cp artisan deployment/laravel/
-
-          # Move public files to root deployment folder
+          # Copy Laravel source code (NO VENDOR)
+          cp -r app deployment/
+          cp -r bootstrap deployment/
+          cp -r config deployment/
+          cp -r database deployment/
+          cp -r resources deployment/
+          cp -r routes deployment/
+          cp -r storage deployment/
           cp -r public/* deployment/
+          cp .env deployment/
+          cp artisan deployment/
+          cp composer.json deployment/
+          cp composer.lock deployment/
 
-          # Update index.php to point to laravel subfolder
-          sed -i "s|__DIR__.'/../|__DIR__.'/laravel/|g" deployment/index.php
-          sed -i "s|require_once __DIR__.'/../vendor/autoload.php';|require_once __DIR__.'/laravel/vendor/autoload.php';|g" deployment/index.php
-          sed -i "s|require_once __DIR__.'/../bootstrap/app.php';|require_once __DIR__.'/laravel/bootstrap/app.php';|g" deployment/index.php
-
-          # Create .htaccess for Hostinger
+          # Create .htaccess
           cat > deployment/.htaccess << 'EOF'
           <IfModule mod_rewrite.c>
               <IfModule mod_negotiation.c>
@@ -144,26 +84,25 @@ jobs:
           </IfModule>
           EOF
 
-          # Create post-deployment script
-          cat > deployment/setup-after-deploy.php << 'EOF'
+          # Create comprehensive deployment script
+          cat > deployment/deploy.php << 'EOF'
           <?php
-          echo "=== Ganesha Post-Deployment Setup ===\n";
+          echo "<h2>🚀 Ganesha Deployment</h2>";
+          echo "<pre>";
 
-          // Change to laravel directory
-          chdir('laravel');
+          // 1. Install Composer dependencies
+          echo "📦 Installing Composer dependencies...\n";
+          exec('composer install --optimize-autoloader --no-dev --no-interaction 2>&1', $output, $return);
 
-          // Create storage symlink
-          if (!file_exists('../storage')) {
-              if (symlink('laravel/storage/app/public', '../storage')) {
-                  echo "✅ Storage symlink created\n";
-              } else {
-                  echo "❌ Failed to create storage symlink\n";
-              }
-          } else {
-              echo "✅ Storage symlink already exists\n";
+          if ($return !== 0) {
+              echo "❌ Composer install failed:\n";
+              foreach ($output as $line) echo $line . "\n";
+              exit(1);
           }
+          echo "✅ Composer dependencies installed\n";
 
-          // Set proper permissions
+          // 2. Set proper permissions
+          echo "🔧 Setting permissions...\n";
           chmod('storage', 0755);
           chmod('storage/logs', 0755);
           chmod('storage/framework', 0755);
@@ -171,32 +110,112 @@ jobs:
           chmod('storage/framework/sessions', 0755);
           chmod('storage/framework/views', 0755);
           chmod('bootstrap/cache', 0755);
-
           echo "✅ Permissions set\n";
 
-          // Clear caches
-          exec('php artisan config:clear 2>&1', $output1, $return1);
-          exec('php artisan route:clear 2>&1', $output2, $return2);
-          exec('php artisan view:clear 2>&1', $output3, $return3);
+          // 3. Create storage link (Laravel way)
+          echo "🔗 Creating storage link...\n";
+          exec('php artisan storage:link 2>&1', $linkOutput, $linkReturn);
+          if ($linkReturn === 0) {
+              echo "✅ Storage link created\n";
+          } else {
+              // Fallback to manual symlink
+              if (!file_exists('public/storage')) {
+                  symlink('../storage/app/public', 'public/storage');
+                  echo "✅ Storage link created (manual)\n";
+              } else {
+                  echo "✅ Storage link already exists\n";
+              }
+          }
 
+          // 4. Clear all caches
+          echo "🧹 Clearing caches...\n";
+          exec('php artisan config:clear 2>&1');
+          exec('php artisan route:clear 2>&1');
+          exec('php artisan view:clear 2>&1');
+          exec('php artisan cache:clear 2>&1');
           echo "✅ Caches cleared\n";
 
-          // Cache for production
-          exec('php artisan config:cache 2>&1', $output4, $return4);
-          exec('php artisan route:cache 2>&1', $output5, $return5);
-          exec('php artisan view:cache 2>&1', $output6, $return6);
+          // 5. Cache for production
+          echo "⚡ Optimizing for production...\n";
+          exec('php artisan config:cache 2>&1');
+          exec('php artisan route:cache 2>&1');
+          exec('php artisan view:cache 2>&1');
+          echo "✅ Production optimizations applied\n";
 
-          echo "✅ Production caches created\n";
+          // 6. Run migrations (if requested)
+          if (isset($_GET['migrate']) && $_GET['migrate'] === 'yes') {
+              echo "🗃️ Running database migrations...\n";
+              exec('php artisan migrate --force 2>&1', $migOutput, $migReturn);
+              if ($migReturn === 0) {
+                  echo "✅ Migrations completed\n";
+              } else {
+                  echo "❌ Migration failed:\n";
+                  foreach ($migOutput as $line) echo $line . "\n";
+              }
+          } else {
+              echo "ℹ️ Migrations skipped (add ?migrate=yes to run)\n";
+          }
 
-          // Run migrations (uncomment after first successful deployment)
-          // exec('php artisan migrate --force 2>&1', $migrationOutput, $migrationReturn);
-          // echo "✅ Migrations run\n";
+          // 7. Final status check
+          echo "\n🎉 Deployment completed successfully!\n";
+          echo "📊 Final status:\n";
+          echo "- Laravel: " . (file_exists('vendor/laravel/framework') ? '✅ Ready' : '❌ Missing') . "\n";
+          echo "- Storage: " . (file_exists('public/storage') ? '✅ Linked' : '❌ Not linked') . "\n";
+          echo "- Config: " . (file_exists('bootstrap/cache/config.php') ? '✅ Cached' : '❌ Not cached') . "\n";
+          echo "- Routes: " . (file_exists('bootstrap/cache/routes-v7.php') ? '✅ Cached' : '❌ Not cached') . "\n";
 
-          echo "🎉 Ganesha deployment setup completed!\n";
+          echo "\n🌐 Website: https://ganeshainstitute.org\n";
+          echo "</pre>";
+
+          echo "<div style='margin-top: 20px;'>";
+          echo "<a href='https://ganeshainstitute.org' style='background: #10b981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>🌐 Visit Website</a> ";
+          echo "<a href='status.php' style='background: #3b82f6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-left: 10px;'>📊 Check Status</a>";
+          echo "</div>";
           ?>
           EOF
 
-      - name: Deploy to Hostinger FTP
+          # Create status checker
+          cat > deployment/status.php << 'EOF'
+          <?php
+          echo "<h2>📊 Ganesha Status Check</h2>";
+          echo "<style>
+          body { font-family: Arial, sans-serif; margin: 40px; }
+          .status { padding: 10px; margin: 5px 0; border-radius: 5px; }
+          .success { background: #d1fae5; color: #065f46; }
+          .error { background: #fee2e2; color: #dc2626; }
+          .warning { background: #fef3c7; color: #92400e; }
+          </style>";
+
+          echo "<div class='status " . (phpversion() >= '8.1' ? 'success' : 'warning') . "'>";
+          echo "🐘 PHP Version: " . phpversion();
+          echo "</div>";
+
+          echo "<div class='status " . (file_exists('vendor/laravel/framework') ? 'success' : 'error') . "'>";
+          echo "🎯 Laravel: " . (file_exists('vendor/laravel/framework') ? 'Installed' : 'Missing');
+          echo "</div>";
+
+          echo "<div class='status " . (is_writable('storage') ? 'success' : 'error') . "'>";
+          echo "📁 Storage Writable: " . (is_writable('storage') ? 'Yes' : 'No');
+          echo "</div>";
+
+          echo "<div class='status " . (file_exists('public/storage') ? 'success' : 'error') . "'>";
+          echo "🔗 Storage Link: " . (file_exists('public/storage') ? 'Created' : 'Missing');
+          echo "</div>";
+
+          echo "<div class='status " . (file_exists('bootstrap/cache/config.php') ? 'success' : 'warning') . "'>";
+          echo "⚡ Config Cached: " . (file_exists('bootstrap/cache/config.php') ? 'Yes' : 'No');
+          echo "</div>";
+
+          echo "<div class='status " . (file_exists('.env') ? 'success' : 'error') . "'>";
+          echo "⚙️ Environment: " . (file_exists('.env') ? 'Configured' : 'Missing');
+          echo "</div>";
+
+          echo "<br><a href='deploy.php' style='background: #10b981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>🚀 Run Deployment</a>";
+          echo " <a href='deploy.php?migrate=yes' style='background: #f59e0b; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-left: 10px;'>🚀 Deploy + Migrate</a>";
+          ?>
+          EOF
+
+      - name: Deploy to Hostinger (Fast upload - Source only)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
           server: ${{ secrets.FTP_HOST }}
@@ -205,13 +224,12 @@ jobs:
           server-dir: ${{ secrets.FTP_SERVER_DIR }}/
           local-dir: ./deployment/
           exclude: |
-            **/.git*
-            **/.git*/**
+            **/vendor/**
             **/node_modules/**
             **/tests/**
+            **/.git*
             **/.env.example
             **/.gitignore
-            **/.gitattributes
             **/package*.json
             **/vite.config.js
             **/tailwind.config.js
