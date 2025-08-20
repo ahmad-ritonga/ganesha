@@ -67,7 +67,10 @@ jobs:
           wc -l .env
           ls -la .env
 
-      - name: Test Laravel env parsing
+      - name: Install Composer dependencies
+        run: composer install --optimize-autoloader --no-dev --no-interaction --prefer-dist
+
+      - name: Test Laravel env parsing (After composer install)
         run: |
           php -r "
           require 'vendor/autoload.php';
@@ -82,9 +85,6 @@ jobs:
               exit(1);
           }
           "
-
-      - name: Install Composer dependencies
-        run: composer install --optimize-autoloader --no-dev --no-interaction --prefer-dist
 
       - name: Install NPM dependencies
         run: npm ci
