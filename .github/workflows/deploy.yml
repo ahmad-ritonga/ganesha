@@ -28,11 +28,16 @@ jobs:
           sed -i 's/DB_HOST=127.0.0.1/DB_HOST=localhost/' .env
           sed -i 's/DB_DATABASE=ganesha/DB_DATABASE=u476015804_ganesha/' .env
           sed -i 's/DB_USERNAME=root/DB_USERNAME=u476015804_ganesha/' .env
-          sed -i 's|DB_PASSWORD=|DB_PASSWORD='"'"'or:d>E3o|'"'"'|' .env
           sed -i 's/SESSION_DRIVER=database/SESSION_DRIVER=file/' .env
           sed -i 's/QUEUE_CONNECTION=database/QUEUE_CONNECTION=sync/' .env
           sed -i 's/CACHE_STORE=database/CACHE_STORE=file/' .env
-          sed -i 's|APP_KEY=|APP_KEY=${{ secrets.APP_KEY }}|' .env
+
+          # Handle special characters in password using different approach
+          echo "DB_PASSWORD=\"or:d>E3o|\"" >> .env
+          sed -i '/^DB_PASSWORD=$/d' .env
+
+          # Add APP_KEY from secrets
+          sed -i "s/APP_KEY=/APP_KEY=${{ secrets.APP_KEY }}/" .env
 
       - name: Install NPM and build assets
         run: |
