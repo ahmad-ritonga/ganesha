@@ -1,0 +1,59 @@
+name: Rebuild Frontend Assets Only
+
+on:
+  workflow_dispatch: # Manual trigger
+  push:
+    paths:
+      - 'resources/**'
+      - 'package.json'
+      - 'vite.config.js'
+
+jobs:
+  rebuild-frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build assets with correct APP_NAME
+        env:
+          VITE_APP_NAME: 'Ganesha'
+        run: |
+          echo "Building with VITE_APP_NAME=Ganesha"
+          npm run build
+
+          # Verify build
+          echo "=== Build verification ==="
+          ls -la public/build/
+
+          # Check if build contains correct app name
+          if grep -r "Ganesha" public/build/ 2>/dev/null; then
+            echo "✅ Found 'Ganesha' in built assets"
+          else
+            echo "⚠️ 'Ganesha' not found in built assets"
+          fi
+
+      - name: Upload only build assets to server
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ secrets.FTP_SERVER_DIR }}/public/build/
+          local-dir: ./public/build/
+          dangerous-clean-slate: true # Replace all files in build folder
+
+      - name: Clear cache via API call
+        run: |
+          echo "Clearing server cache..."
+          curl -f "https://ganeshainstitute.org/fix-app-name" || echo "Cache clear failed, but assets uploaded"
