@@ -25,12 +25,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Create .env for build
+        run: |
+          echo "VITE_APP_NAME=\"Ganesha\"" > .env
+          echo "APP_NAME=\"Ganesha\"" >> .env
+          cat .env
+          echo "=== Environment check ==="
+          echo "VITE_APP_NAME=$VITE_APP_NAME"
+
       - name: Build assets with correct APP_NAME
         env:
           VITE_APP_NAME: 'Ganesha'
         run: |
           echo "Building with VITE_APP_NAME=Ganesha"
-          npm run build
+
+          # Double check environment
+          echo "Current VITE_APP_NAME: $VITE_APP_NAME"
+
+          # Build with explicit env var
+          VITE_APP_NAME="Ganesha" npm run build
 
           # Verify build
           echo "=== Build verification ==="
@@ -41,6 +54,8 @@ jobs:
             echo "✅ Found 'Ganesha' in built assets"
           else
             echo "⚠️ 'Ganesha' not found in built assets"
+            echo "=== Checking what's actually in the files ==="
+            find public/build -name "*.js" -exec grep -l "app" {} \; | head -3 | xargs cat | head -20
           fi
 
       - name: Upload only build assets to server
