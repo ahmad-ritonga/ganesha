@@ -26,49 +26,69 @@ jobs:
           node-version: '18'
           cache: 'npm'
 
-      - name: Copy .env.example to .env
-        run: cp .env.example .env
-
-      - name: Update .env for production
+      - name: Create production .env file
         run: |
-          sed -i 's/APP_NAME="Ganesha"/APP_NAME="Ganesha"/' .env
-          sed -i 's/APP_ENV=local/APP_ENV=production/' .env
-          sed -i 's/APP_DEBUG=true/APP_DEBUG=false/' .env
-          sed -i "s/APP_KEY=/APP_KEY=${{ secrets.APP_KEY }}/" .env
-          sed -i "s|APP_URL=.*|APP_URL=https://ganeshainstitute.org|" .env
-          sed -i "s/DB_HOST=127.0.0.1/DB_HOST=${{ secrets.DB_HOST }}/" .env
-          sed -i "s/DB_DATABASE=ganesha/DB_DATABASE=${{ secrets.DB_DATABASE }}/" .env
-          sed -i "s/DB_USERNAME=root/DB_USERNAME=${{ secrets.DB_USERNAME }}/" .env
-          sed -i "s/DB_PASSWORD=/DB_PASSWORD=${{ secrets.DB_PASSWORD }}/" .env
-          sed -i "s/SESSION_DRIVER=database/SESSION_DRIVER=file/" .env
-          sed -i "s/QUEUE_CONNECTION=database/QUEUE_CONNECTION=sync/" .env
-          sed -i "s/CACHE_STORE=database/CACHE_STORE=file/" .env
-
-          # Mail configuration
-          echo "MAIL_MAILER=smtp" >> .env
-          echo "MAIL_HOST=smtp.gmail.com" >> .env
-          echo "MAIL_PORT=587" >> .env
-          echo "MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}" >> .env
-          echo "MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}" >> .env
-          echo "MAIL_ENCRYPTION=tls" >> .env
-          echo "MAIL_FROM_ADDRESS=${{ secrets.MAIL_USERNAME }}" >> .env
-          echo "MAIL_FROM_NAME=Ganesha" >> .env
-
-          # Midtrans configuration
-          echo "MIDTRANS_MERCHANT_ID=G676052948" >> .env
-          echo "MIDTRANS_CLIENT_KEY=${{ secrets.MIDTRANS_CLIENT_KEY }}" >> .env
-          echo "MIDTRANS_SERVER_KEY=${{ secrets.MIDTRANS_SERVER_KEY }}" >> .env
-          echo "MIDTRANS_IS_PRODUCTION=false" >> .env
-          echo "MIDTRANS_IS_SANITIZED=true" >> .env
-          echo "MIDTRANS_IS_3DS=true" >> .env
-          echo "VITE_MIDTRANS_CLIENT_KEY=${{ secrets.MIDTRANS_CLIENT_KEY }}" >> .env
-
-          # TinyMCE
-          echo "TINYMCE_API_KEY=${{ secrets.TINYMCE_API_KEY }}" >> .env
-
-          # reCAPTCHA (production keys)
-          echo "RECAPTCHA_SITE_KEY=${{ secrets.RECAPTCHA_SITE_KEY }}" >> .env
-          echo "RECAPTCHA_SECRET_KEY=${{ secrets.RECAPTCHA_SECRET_KEY }}" >> .env
+          cat > .env << 'EOF'
+          APP_NAME="Ganesha"
+          APP_ENV=production
+          APP_KEY=${{ secrets.APP_KEY }}
+          APP_DEBUG=false
+          APP_URL=https://ganeshainstitute.org
+          APP_LOCALE=en
+          APP_FALLBACK_LOCALE=en
+          APP_FAKER_LOCALE=en_US
+          APP_MAINTENANCE_DRIVER=file
+          PHP_CLI_SERVER_WORKERS=4
+          BCRYPT_ROUNDS=12
+          LOG_CHANNEL=stack
+          LOG_STACK=single
+          LOG_DEPRECATIONS_CHANNEL=null
+          LOG_LEVEL=debug
+          DB_CONNECTION=mysql
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=3306
+          DB_DATABASE=${{ secrets.DB_DATABASE }}
+          DB_USERNAME=${{ secrets.DB_USERNAME }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          SESSION_DRIVER=file
+          SESSION_LIFETIME=120
+          SESSION_ENCRYPT=false
+          SESSION_PATH=/
+          SESSION_DOMAIN=null
+          BROADCAST_CONNECTION=log
+          FILESYSTEM_DISK=local
+          QUEUE_CONNECTION=sync
+          CACHE_STORE=file
+          MEMCACHED_HOST=127.0.0.1
+          REDIS_CLIENT=phpredis
+          REDIS_HOST=127.0.0.1
+          REDIS_PASSWORD=null
+          REDIS_PORT=6379
+          MAIL_MAILER=smtp
+          MAIL_HOST=smtp.gmail.com
+          MAIL_PORT=587
+          MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}
+          MAIL_ENCRYPTION=tls
+          MAIL_FROM_ADDRESS=${{ secrets.MAIL_USERNAME }}
+          MAIL_FROM_NAME="Ganesha"
+          AWS_ACCESS_KEY_ID=
+          AWS_SECRET_ACCESS_KEY=
+          AWS_DEFAULT_REGION=us-east-1
+          AWS_BUCKET=
+          AWS_USE_PATH_STYLE_ENDPOINT=false
+          VITE_APP_NAME="Ganesha"
+          RECAPTCHA_SITE_KEY=${{ secrets.RECAPTCHA_SITE_KEY }}
+          RECAPTCHA_SECRET_KEY=${{ secrets.RECAPTCHA_SECRET_KEY }}
+          TINYMCE_API_KEY=${{ secrets.TINYMCE_API_KEY }}
+          MIDTRANS_MERCHANT_ID=G676052948
+          MIDTRANS_CLIENT_KEY=${{ secrets.MIDTRANS_CLIENT_KEY }}
+          MIDTRANS_SERVER_KEY=${{ secrets.MIDTRANS_SERVER_KEY }}
+          MIDTRANS_IS_PRODUCTION=false
+          MIDTRANS_IS_SANITIZED=true
+          MIDTRANS_IS_3DS=true
+          VITE_MIDTRANS_CLIENT_KEY=${{ secrets.MIDTRANS_CLIENT_KEY }}
+          EOF
 
       - name: Install Composer dependencies
         run: composer install --optimize-autoloader --no-dev --no-interaction --prefer-dist
