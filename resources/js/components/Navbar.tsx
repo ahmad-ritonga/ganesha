@@ -53,7 +53,7 @@ export default function GaneshaNavbar({ className }: GaneshaNavbarProps) {
       link: "/about",
     },
     {
-      name: "Kategori",
+      name: "Menu",
       link: "/categories",
       hasDropdown: true,
     },
@@ -74,7 +74,7 @@ export default function GaneshaNavbar({ className }: GaneshaNavbarProps) {
       link: "/about",
     },
     {
-      name: "Kategori",
+      name: "Menu",
       link: "/categories",
       hasDropdown: true,
     },

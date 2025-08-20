@@ -15,7 +15,7 @@ class DatabaseSeeder extends Seeder
             AdminUserSeeder::class,
             CategorySeeder::class,
             AuthorSubscriptionPlanSeeder::class,
-            BookSeeder::class,
+            // BookSeeder::class,
             ChapterContentSeeder::class
         ]);
     }
