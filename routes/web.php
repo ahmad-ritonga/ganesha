@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Http;
 use App\Http\Controllers\ReviewController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use Exception;
 
 Route::get('/', function () {
     return Inertia::render('welcome');
