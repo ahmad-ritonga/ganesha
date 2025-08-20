@@ -21,6 +21,7 @@ use App\Http\Controllers\TransactionSyncController;
 use App\Http\Controllers\WebhookController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\ReadingProgressController;
+use Illuminate\Support\Facades\Http;
 use App\Http\Controllers\ReviewController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
