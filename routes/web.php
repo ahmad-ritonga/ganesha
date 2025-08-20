@@ -644,4 +644,150 @@ Route::middleware(['web'])->group(function () {
             }
         ])->render();
     })->name('deploy.status');
+
+    // Route untuk debug reCAPTCHA
+    Route::get('/debug/recaptcha', function () {
+        if (!request()->has('key') || request('key') !== 'ganesha2024deploy') {
+            abort(403, 'Unauthorized');
+        }
+
+        return view('deployment.layout', [
+            'title' => '🔍 reCAPTCHA Debug',
+            'content' => function () {
+                $html = '';
+
+                // 1. Check environment variables
+                $html .= '<div class="step info">';
+                $html .= '<h3>📋 Environment Variables</h3>';
+                $html .= '<pre>';
+                $html .= 'APP_NAME: ' . config('app.name') . "\n";
+                $html .= 'APP_ENV: ' . app()->environment() . "\n";
+                $html .= 'RECAPTCHA_SITE_KEY: ' . (env('RECAPTCHA_SITE_KEY') ? substr(env('RECAPTCHA_SITE_KEY'), 0, 20) . '...' : 'NOT_SET') . "\n";
+                $html .= 'RECAPTCHA_SECRET_KEY: ' . (env('RECAPTCHA_SECRET_KEY') ? substr(env('RECAPTCHA_SECRET_KEY'), 0, 20) . '...' : 'NOT_SET') . "\n";
+                $html .= 'Config Cached: ' . (file_exists(bootstrap_path('cache/config.php')) ? 'YES' : 'NO') . "\n";
+                $html .= '</pre>';
+                $html .= '</div>';
+
+                // 2. Check .env file content
+                $envPath = base_path('.env');
+                if (file_exists($envPath)) {
+                    $envContent = file_get_contents($envPath);
+                    $html .= '<div class="step info">';
+                    $html .= '<h3>📄 .env File reCAPTCHA Lines</h3>';
+                    $html .= '<pre>';
+
+                    $lines = explode("\n", $envContent);
+                    foreach ($lines as $line) {
+                        if (strpos($line, 'RECAPTCHA') !== false || strpos($line, 'APP_NAME') !== false) {
+                            $html .= $line . "\n";
+                        }
+                    }
+                    $html .= '</pre>';
+                    $html .= '</div>';
+                }
+
+                // 3. Test reCAPTCHA API directly
+                if (request()->has('test_api')) {
+                    $html .= '<div class="step warning">';
+                    $html .= '<h3>🧪 API Test Results</h3>';
+                    $html .= '<pre>';
+
+                    $siteKey = env('RECAPTCHA_SITE_KEY');
+                    $secretKey = env('RECAPTCHA_SECRET_KEY');
+
+                    if ($siteKey && $secretKey) {
+                        $html .= "Testing with:\n";
+                        $html .= "Site Key: " . substr($siteKey, 0, 20) . "...\n";
+                        $html .= "Secret Key: " . substr($secretKey, 0, 20) . "...\n\n";
+
+                        // Test API endpoint
+                        try {
+                            $response = Http::asForm()->post('https://www.google.com/recaptcha/api/siteverify', [
+                                'secret' => $secretKey,
+                                'response' => 'test-token',
+                                'remoteip' => request()->ip()
+                            ]);
+
+                            $result = $response->json();
+                            $html .= "API Response:\n";
+                            $html .= json_encode($result, JSON_PRETTY_PRINT) . "\n";
+
+                            if (isset($result['error-codes'])) {
+                                $html .= "\n❌ Error Codes Found:\n";
+                                foreach ($result['error-codes'] as $error) {
+                                    switch ($error) {
+                                        case 'missing-input-secret':
+                                            $html .= "- Missing secret key\n";
+                                            break;
+                                        case 'invalid-input-secret':
+                                            $html .= "- Invalid secret key (check if you're using site key instead)\n";
+                                            break;
+                                        case 'missing-input-response':
+                                            $html .= "- Missing response token (normal for test)\n";
+                                            break;
+                                        case 'invalid-input-response':
+                                            $html .= "- Invalid response token (normal for test)\n";
+                                            break;
+                                        default:
+                                            $html .= "- " . $error . "\n";
+                                    }
+                                }
+                            }
+                        } catch (Exception $e) {
+                            $html .= "❌ API Test Failed: " . $e->getMessage() . "\n";
+                        }
+                    } else {
+                        $html .= "❌ Keys not found in environment\n";
+                    }
+
+                    $html .= '</pre>';
+                    $html .= '</div>';
+                } else {
+                    $html .= '<div class="step info">';
+                    $html .= '<p><a href="?key=ganesha2024deploy&test_api=1" class="button">🧪 Test API Connection</a></p>';
+                    $html .= '</div>';
+                }
+
+                // 4. Config cache actions
+                if (request()->has('clear_cache')) {
+                    $html .= '<div class="step warning">';
+                    $html .= '<h3>🧹 Clearing Caches...</h3>';
+                    $html .= '<pre>';
+                    try {
+                        \Artisan::call('config:clear');
+                        $html .= "✅ Config cache cleared\n";
+
+                        \Artisan::call('route:clear');
+                        $html .= "✅ Route cache cleared\n";
+
+                        \Artisan::call('view:clear');
+                        $html .= "✅ View cache cleared\n";
+
+                        \Artisan::call('cache:clear');
+                        $html .= "✅ Application cache cleared\n";
+
+                        $html .= "\n🎉 All caches cleared! Please test login again.\n";
+                    } catch (Exception $e) {
+                        $html .= "❌ Cache clear failed: " . $e->getMessage() . "\n";
+                    }
+                    $html .= '</pre>';
+                    $html .= '</div>';
+                } else {
+                    $html .= '<div class="step info">';
+                    $html .= '<p><a href="?key=ganesha2024deploy&clear_cache=1" class="button button-orange">🧹 Clear All Caches</a></p>';
+                    $html .= '</div>';
+                }
+
+                // 5. Quick actions
+                $html .= '<div class="step info">';
+                $html .= '<h3>🔧 Quick Actions</h3>';
+                $html .= '<a href="/deploy/recaptcha-setup?key=ganesha2024deploy" class="button">🔒 Setup reCAPTCHA</a> ';
+                $html .= '<a href="/login" class="button button-blue">🧪 Test Login</a> ';
+                $html .= '<a href="/" class="button">🌐 Homepage</a>';
+                $html .= '</div>';
+
+                return $html;
+            }
+        ])->render();
+    })->name('debug.recaptcha');
 });
