@@ -1,0 +1,208 @@
+name: Deploy Ganesha to Hostinger
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, pdo_mysql, zip
+          coverage: none
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Copy .env.example to .env
+        run: cp .env.example .env
+
+      - name: Update .env for production
+        run: |
+          sed -i 's/APP_NAME="Ganesha"/APP_NAME="Ganesha"/' .env
+          sed -i 's/APP_ENV=local/APP_ENV=production/' .env
+          sed -i 's/APP_DEBUG=true/APP_DEBUG=false/' .env
+          sed -i "s/APP_KEY=/APP_KEY=${{ secrets.APP_KEY }}/" .env
+          sed -i "s|APP_URL=.*|APP_URL=https://ganeshainstitute.org|" .env
+          sed -i "s/DB_HOST=127.0.0.1/DB_HOST=${{ secrets.DB_HOST }}/" .env
+          sed -i "s/DB_DATABASE=ganesha/DB_DATABASE=${{ secrets.DB_DATABASE }}/" .env
+          sed -i "s/DB_USERNAME=root/DB_USERNAME=${{ secrets.DB_USERNAME }}/" .env
+          sed -i "s/DB_PASSWORD=/DB_PASSWORD=${{ secrets.DB_PASSWORD }}/" .env
+          sed -i "s/SESSION_DRIVER=database/SESSION_DRIVER=file/" .env
+          sed -i "s/QUEUE_CONNECTION=database/QUEUE_CONNECTION=sync/" .env
+          sed -i "s/CACHE_STORE=database/CACHE_STORE=file/" .env
+
+          # Mail configuration
+          echo "MAIL_MAILER=smtp" >> .env
+          echo "MAIL_HOST=smtp.gmail.com" >> .env
+          echo "MAIL_PORT=587" >> .env
+          echo "MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}" >> .env
+          echo "MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}" >> .env
+          echo "MAIL_ENCRYPTION=tls" >> .env
+          echo "MAIL_FROM_ADDRESS=${{ secrets.MAIL_USERNAME }}" >> .env
+          echo "MAIL_FROM_NAME=Ganesha" >> .env
+
+          # Midtrans configuration
+          echo "MIDTRANS_MERCHANT_ID=G676052948" >> .env
+          echo "MIDTRANS_CLIENT_KEY=${{ secrets.MIDTRANS_CLIENT_KEY }}" >> .env
+          echo "MIDTRANS_SERVER_KEY=${{ secrets.MIDTRANS_SERVER_KEY }}" >> .env
+          echo "MIDTRANS_IS_PRODUCTION=false" >> .env
+          echo "MIDTRANS_IS_SANITIZED=true" >> .env
+          echo "MIDTRANS_IS_3DS=true" >> .env
+          echo "VITE_MIDTRANS_CLIENT_KEY=${{ secrets.MIDTRANS_CLIENT_KEY }}" >> .env
+
+          # TinyMCE
+          echo "TINYMCE_API_KEY=${{ secrets.TINYMCE_API_KEY }}" >> .env
+
+          # reCAPTCHA (production keys)
+          echo "RECAPTCHA_SITE_KEY=${{ secrets.RECAPTCHA_SITE_KEY }}" >> .env
+          echo "RECAPTCHA_SECRET_KEY=${{ secrets.RECAPTCHA_SECRET_KEY }}" >> .env
+
+      - name: Install Composer dependencies
+        run: composer install --optimize-autoloader --no-dev --no-interaction --prefer-dist
+
+      - name: Install NPM dependencies
+        run: npm ci
+
+      - name: Build assets with Vite
+        run: npm run build
+
+      - name: Prepare deployment for shared hosting
+        run: |
+          # Create deployment structure
+          mkdir -p deployment/laravel
+
+          # Move Laravel core files to laravel subfolder
+          cp -r app deployment/laravel/
+          cp -r bootstrap deployment/laravel/
+          cp -r config deployment/laravel/
+          cp -r database deployment/laravel/
+          cp -r resources deployment/laravel/
+          cp -r routes deployment/laravel/
+          cp -r storage deployment/laravel/
+          cp -r vendor deployment/laravel/
+          cp .env deployment/laravel/
+          cp artisan deployment/laravel/
+
+          # Move public files to root deployment folder
+          cp -r public/* deployment/
+
+          # Update index.php to point to laravel subfolder
+          sed -i "s|__DIR__.'/../|__DIR__.'/laravel/|g" deployment/index.php
+          sed -i "s|require_once __DIR__.'/../vendor/autoload.php';|require_once __DIR__.'/laravel/vendor/autoload.php';|g" deployment/index.php
+          sed -i "s|require_once __DIR__.'/../bootstrap/app.php';|require_once __DIR__.'/laravel/bootstrap/app.php';|g" deployment/index.php
+
+          # Create .htaccess for Hostinger
+          cat > deployment/.htaccess << 'EOF'
+          <IfModule mod_rewrite.c>
+              <IfModule mod_negotiation.c>
+                  Options -MultiViews -Indexes
+              </IfModule>
+
+              RewriteEngine On
+
+              # Handle Inertia.js and SPA routes
+              RewriteCond %{REQUEST_URI} ^/(.*)?$
+              RewriteCond %{REQUEST_FILENAME} !-f
+              RewriteCond %{REQUEST_FILENAME} !-d
+              RewriteRule ^.*$ /index.php [L]
+
+              # Redirect Trailing Slashes If Not A Folder...
+              RewriteCond %{REQUEST_FILENAME} !-d
+              RewriteCond %{REQUEST_URI} (.+)/$
+              RewriteRule ^ %1 [L,R=301]
+
+              # Send Requests To Front Controller...
+              RewriteCond %{REQUEST_FILENAME} !-d
+              RewriteCond %{REQUEST_FILENAME} !-f
+              RewriteRule ^ index.php [L]
+          </IfModule>
+          EOF
+
+          # Create post-deployment script
+          cat > deployment/setup-after-deploy.php << 'EOF'
+          <?php
+          echo "=== Ganesha Post-Deployment Setup ===\n";
+
+          // Change to laravel directory
+          chdir('laravel');
+
+          // Create storage symlink
+          if (!file_exists('../storage')) {
+              if (symlink('laravel/storage/app/public', '../storage')) {
+                  echo "✅ Storage symlink created\n";
+              } else {
+                  echo "❌ Failed to create storage symlink\n";
+              }
+          } else {
+              echo "✅ Storage symlink already exists\n";
+          }
+
+          // Set proper permissions
+          chmod('storage', 0755);
+          chmod('storage/logs', 0755);
+          chmod('storage/framework', 0755);
+          chmod('storage/framework/cache', 0755);
+          chmod('storage/framework/sessions', 0755);
+          chmod('storage/framework/views', 0755);
+          chmod('bootstrap/cache', 0755);
+
+          echo "✅ Permissions set\n";
+
+          // Clear caches
+          exec('php artisan config:clear 2>&1', $output1, $return1);
+          exec('php artisan route:clear 2>&1', $output2, $return2);
+          exec('php artisan view:clear 2>&1', $output3, $return3);
+
+          echo "✅ Caches cleared\n";
+
+          // Cache for production
+          exec('php artisan config:cache 2>&1', $output4, $return4);
+          exec('php artisan route:cache 2>&1', $output5, $return5);
+          exec('php artisan view:cache 2>&1', $output6, $return6);
+
+          echo "✅ Production caches created\n";
+
+          // Run migrations (uncomment after first successful deployment)
+          // exec('php artisan migrate --force 2>&1', $migrationOutput, $migrationReturn);
+          // echo "✅ Migrations run\n";
+
+          echo "🎉 Ganesha deployment setup completed!\n";
+          ?>
+          EOF
+
+      - name: Deploy to Hostinger FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ secrets.FTP_SERVER_DIR }}/
+          local-dir: ./deployment/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/tests/**
+            **/.env.example
+            **/.gitignore
+            **/.gitattributes
+            **/package*.json
+            **/vite.config.js
+            **/tailwind.config.js
+            **/postcss.config.js
+            **/phpunit.xml
+            **/.DS_Store
+            **/Thumbs.db
