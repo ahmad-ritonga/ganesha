@@ -315,3 +315,333 @@ Route::prefix('api')->group(function () {
 
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';
+
+// =====================================================
+// Deployment & Maintenance Routes (Production only)
+// =====================================================
+Route::middleware(['web'])->group(function () {
+
+    // Route untuk extract assets (dengan keamanan)
+    Route::get('/deploy/extract-assets', function () {
+        // Security check
+        if (app()->environment('production') && (!request()->has('key') || request('key') !== 'ganesha2024deploy')) {
+            abort(403, 'Unauthorized access');
+        }
+
+        $output = '';
+        $success = false;
+
+        $output .= view('deployment.layout', [
+            'title' => '📦 Extract Assets',
+            'content' => function () use (&$success) {
+                $html = '';
+
+                // Check for assets.zip
+                $assetsFile = null;
+                $locations = [
+                    public_path('assets.zip'),
+                    base_path('assets.zip'),
+                    storage_path('assets.zip')
+                ];
+
+                foreach ($locations as $location) {
+                    if (file_exists($location)) {
+                        $assetsFile = $location;
+                        break;
+                    }
+                }
+
+                if (!$assetsFile) {
+                    $html .= '<div class="step error">';
+                    $html .= '<h3>❌ Assets.zip Not Found</h3>';
+                    $html .= '<p>Please upload assets.zip to one of these locations:</p>';
+                    $html .= '<ul>';
+                    foreach ($locations as $location) {
+                        $html .= '<li>' . $location . '</li>';
+                    }
+                    $html .= '</ul>';
+                    $html .= '</div>';
+                    return $html;
+                }
+
+                $html .= '<div class="step info">';
+                $html .= '<h3>📋 Found Assets</h3>';
+                $html .= '<p>File: ' . basename($assetsFile) . ' (' . round(filesize($assetsFile) / 1024 / 1024, 2) . ' MB)</p>';
+                $html .= '</div>';
+
+                // Extract if requested
+                if (request()->has('extract')) {
+                    $html .= '<div class="step warning">';
+                    $html .= '<h3>🔄 Extracting Assets...</h3>';
+                    $html .= '<pre>';
+
+                    try {
+                        // Ensure public directory exists
+                        if (!is_dir(public_path())) {
+                            mkdir(public_path(), 0755, true);
+                            $html .= "✅ Created public directory\n";
+                        }
+
+                        // Try ZipArchive
+                        if (class_exists('ZipArchive')) {
+                            $zip = new ZipArchive;
+                            $result = $zip->open($assetsFile);
+
+                            if ($result === TRUE) {
+                                $zip->extractTo(public_path());
+                                $extractedFiles = $zip->numFiles;
+                                $zip->close();
+                                $html .= "✅ Successfully extracted {$extractedFiles} files with ZipArchive\n";
+                                $success = true;
+
+                                // List some extracted files
+                                $extracted = glob(public_path('*'));
+                                $html .= "\n📁 Extracted to public/:\n";
+                                foreach (array_slice($extracted, 0, 10) as $file) {
+                                    $html .= "  • " . basename($file) . "\n";
+                                }
+                                if (count($extracted) > 10) {
+                                    $html .= "  • ... and " . (count($extracted) - 10) . " more\n";
+                                }
+                            } else {
+                                $html .= "❌ ZipArchive failed: $result\n";
+                            }
+                        }
+
+                        // Try system unzip as fallback
+                        if (!$success && function_exists('exec')) {
+                            $html .= "🔄 Trying system unzip...\n";
+                            $command = 'unzip -o "' . $assetsFile . '" -d "' . public_path() . '"';
+                            exec($command . ' 2>&1', $execOutput, $return);
+
+                            if ($return === 0) {
+                                $html .= "✅ Successfully extracted with system unzip\n";
+                                $success = true;
+                            } else {
+                                $html .= "❌ System unzip failed:\n";
+                                foreach ($execOutput as $line) {
+                                    $html .= "  " . $line . "\n";
+                                }
+                            }
+                        }
+
+                        if ($success) {
+                            $html .= "\n🎉 Extraction completed!\n";
+
+                            // Clean up
+                            if (unlink($assetsFile)) {
+                                $html .= "✅ Cleaned up assets.zip\n";
+                            }
+
+                            // Clear Laravel caches
+                            \Artisan::call('config:clear');
+                            \Artisan::call('route:clear');
+                            \Artisan::call('view:clear');
+                            $html .= "✅ Cleared Laravel caches\n";
+                        }
+                    } catch (Exception $e) {
+                        $html .= "❌ Error: " . $e->getMessage() . "\n";
+                    }
+
+                    $html .= '</pre>';
+                    $html .= '</div>';
+
+                    if ($success) {
+                        $html .= '<div class="step success">';
+                        $html .= '<h3>🎉 Assets Extracted Successfully!</h3>';
+                        $html .= '<p>Your assets are now available. Next steps:</p>';
+                        $html .= '<ol>';
+                        $html .= '<li>Setup reCAPTCHA keys</li>';
+                        $html .= '<li>Test your website</li>';
+                        $html .= '</ol>';
+                        $html .= '<a href="/deploy/recaptcha-setup?key=ganesha2024deploy" class="button">🔒 Setup reCAPTCHA</a> ';
+                        $html .= '<a href="/" class="button button-blue">🌐 Visit Website</a>';
+                        $html .= '</div>';
+                    }
+                } else {
+                    $html .= '<div class="step warning">';
+                    $html .= '<h3>📦 Ready to Extract</h3>';
+                    $html .= '<p>Click below to extract assets.zip to public/ directory:</p>';
+                    $html .= '<a href="?extract=1&key=ganesha2024deploy" class="button button-orange">🚀 Extract Assets Now</a>';
+                    $html .= '</div>';
+                }
+
+                return $html;
+            }
+        ])->render();
+
+        return $output;
+    })->name('deploy.extract-assets');
+
+    // Route untuk setup reCAPTCHA
+    Route::get('/deploy/recaptcha-setup', function () {
+        // Security check
+        if (app()->environment('production') && (!request()->has('key') || request('key') !== 'ganesha2024deploy')) {
+            abort(403, 'Unauthorized access');
+        }
+
+        return view('deployment.layout', [
+            'title' => '🔒 reCAPTCHA Setup',
+            'content' => function () {
+                $html = '';
+
+                // Check current status
+                $envPath = base_path('.env');
+                $envContent = file_exists($envPath) ? file_get_contents($envPath) : '';
+                $hasSiteKey = strpos($envContent, 'RECAPTCHA_SITE_KEY=') !== false &&
+                    !empty(trim(str_replace(
+                        ['RECAPTCHA_SITE_KEY=', '"'],
+                        '',
+                        preg_match('/RECAPTCHA_SITE_KEY=(.*)/', $envContent, $matches) ? $matches[1] : ''
+                    )));
+                $hasSecretKey = strpos($envContent, 'RECAPTCHA_SECRET_KEY=') !== false &&
+                    !empty(trim(str_replace(
+                        ['RECAPTCHA_SECRET_KEY=', '"'],
+                        '',
+                        preg_match('/RECAPTCHA_SECRET_KEY=(.*)/', $envContent, $matches) ? $matches[1] : ''
+                    )));
+
+                $html .= '<div class="step info">';
+                $html .= '<h3>📋 Current Status</h3>';
+                $html .= '<strong>Environment file:</strong> ' . (file_exists($envPath) ? '✅ Found' : '❌ Missing') . '<br>';
+                $html .= '<strong>reCAPTCHA Site Key:</strong> ' . ($hasSiteKey ? '✅ Configured' : '❌ Missing') . '<br>';
+                $html .= '<strong>reCAPTCHA Secret Key:</strong> ' . ($hasSecretKey ? '✅ Configured' : '❌ Missing') . '<br>';
+                $html .= '</div>';
+
+                // Handle form submission
+                if (request()->has('setup') && request()->has('site_key') && request()->has('secret_key')) {
+                    $siteKey = trim(request('site_key'));
+                    $secretKey = trim(request('secret_key'));
+
+                    if (empty($siteKey) || empty($secretKey)) {
+                        $html .= '<div class="step error">';
+                        $html .= '<h3>❌ Error</h3>';
+                        $html .= '<p>Please provide both Site Key and Secret Key!</p>';
+                        $html .= '</div>';
+                    } else {
+                        try {
+                            // Update .env file
+                            $envContent = preg_replace('/^RECAPTCHA_SITE_KEY=.*$/m', '', $envContent);
+                            $envContent = preg_replace('/^RECAPTCHA_SECRET_KEY=.*$/m', '', $envContent);
+                            $envContent = trim($envContent) . "\n\n# reCAPTCHA Configuration\n";
+                            $envContent .= "RECAPTCHA_SITE_KEY={$siteKey}\n";
+                            $envContent .= "RECAPTCHA_SECRET_KEY={$secretKey}\n";
+
+                            if (file_put_contents($envPath, $envContent)) {
+                                $html .= '<div class="step success">';
+                                $html .= '<h3>✅ reCAPTCHA Setup Complete!</h3>';
+                                $html .= '<p>Keys saved successfully:</p>';
+                                $html .= '<p><strong>Site Key:</strong> ' . substr($siteKey, 0, 20) . '...</p>';
+                                $html .= '<p><strong>Secret Key:</strong> ' . substr($secretKey, 0, 20) . '...</p>';
+
+                                // Clear config cache
+                                \Artisan::call('config:clear');
+                                $html .= '<p>✅ Config cache cleared</p>';
+                                $html .= '</div>';
+
+                                $hasSiteKey = true;
+                                $hasSecretKey = true;
+                            } else {
+                                $html .= '<div class="step error">';
+                                $html .= '<h3>❌ Failed to Save</h3>';
+                                $html .= '<p>Could not write to .env file. Check permissions.</p>';
+                                $html .= '</div>';
+                            }
+                        } catch (Exception $e) {
+                            $html .= '<div class="step error">';
+                            $html .= '<h3>❌ Error</h3>';
+                            $html .= '<p>' . $e->getMessage() . '</p>';
+                            $html .= '</div>';
+                        }
+                    }
+                }
+
+                if (!$hasSiteKey || !$hasSecretKey) {
+                    $html .= '<div class="step info">';
+                    $html .= '<h3>📖 How to Get reCAPTCHA Keys</h3>';
+                    $html .= '<ol>';
+                    $html .= '<li>Go to <a href="https://www.google.com/recaptcha/admin/create" target="_blank"><strong>Google reCAPTCHA Console</strong></a></li>';
+                    $html .= '<li>Create new site with these domains:</li>';
+                    $html .= '</ol>';
+                    $html .= '<div style="background:#f8f9fa;padding:10px;border-radius:4px;font-family:monospace;">';
+                    $html .= 'ganeshainstitute.org<br>www.ganeshainstitute.org<br>145.79.14.156';
+                    $html .= '</div>';
+                    $html .= '</div>';
+
+                    $html .= '<div class="step warning">';
+                    $html .= '<h3>🔧 Enter reCAPTCHA Keys</h3>';
+                    $html .= '<form method="GET">';
+                    $html .= '<input type="hidden" name="key" value="ganesha2024deploy">';
+                    $html .= '<div class="form-group">';
+                    $html .= '<label>Site Key:</label>';
+                    $html .= '<input type="text" name="site_key" placeholder="6Lc..." required>';
+                    $html .= '</div>';
+                    $html .= '<div class="form-group">';
+                    $html .= '<label>Secret Key:</label>';
+                    $html .= '<input type="text" name="secret_key" placeholder="6Lc..." required>';
+                    $html .= '</div>';
+                    $html .= '<button type="submit" name="setup" value="1" class="button">🔒 Setup reCAPTCHA</button>';
+                    $html .= '</form>';
+                    $html .= '</div>';
+                } else {
+                    $html .= '<div class="step success">';
+                    $html .= '<h3>🎉 All Set!</h3>';
+                    $html .= '<p>reCAPTCHA is configured. Test your website:</p>';
+                    $html .= '<a href="/login" class="button">🧪 Test Login</a> ';
+                    $html .= '<a href="/" class="button">🌐 Homepage</a>';
+                    $html .= '</div>';
+                }
+
+                return $html;
+            }
+        ])->render();
+    })->name('deploy.recaptcha-setup');
+
+    // Route untuk status deployment
+    Route::get('/deploy/status', function () {
+        if (app()->environment('production') && (!request()->has('key') || request('key') !== 'ganesha2024deploy')) {
+            abort(403, 'Unauthorized access');
+        }
+
+        return view('deployment.layout', [
+            'title' => '📊 Deployment Status',
+            'content' => function () {
+                $html = '';
+
+                // Check various components
+                $checks = [
+                    'Laravel Framework' => class_exists('Illuminate\Foundation\Application'),
+                    'Environment File' => file_exists(base_path('.env')),
+                    'Public Directory' => is_dir(public_path()),
+                    'Storage Writable' => is_writable(storage_path()),
+                    'Assets Extracted' => file_exists(public_path('build')) || file_exists(public_path('css')),
+                    'Storage Linked' => file_exists(public_path('storage')),
+                    'Config Cached' => file_exists(bootstrap_path('cache/config.php')),
+                    'Routes Cached' => file_exists(bootstrap_path('cache/routes-v7.php')),
+                ];
+
+                $html .= '<div class="status-grid">';
+                foreach ($checks as $check => $status) {
+                    $html .= '<div class="status-card ' . ($status ? 'status-ok' : 'status-error') . '">';
+                    $html .= '<h4>' . ($status ? '✅' : '❌') . ' ' . $check . '</h4>';
+                    $html .= '<p>' . ($status ? 'OK' : 'Failed') . '</p>';
+                    $html .= '</div>';
+                }
+                $html .= '</div>';
+
+                // Environment info
+                $html .= '<div class="step info">';
+                $html .= '<h3>🔧 Environment Info</h3>';
+                $html .= '<ul>';
+                $html .= '<li><strong>PHP Version:</strong> ' . PHP_VERSION . '</li>';
+                $html .= '<li><strong>Laravel Version:</strong> ' . app()->version() . '</li>';
+                $html .= '<li><strong>Environment:</strong> ' . app()->environment() . '</li>';
+                $html .= '<li><strong>Debug Mode:</strong> ' . (config('app.debug') ? 'ON' : 'OFF') . '</li>';
+                $html .= '</ul>';
+                $html .= '</div>';
+
+                return $html;
+            }
+        ])->render();
+    })->name('deploy.status');
+});
